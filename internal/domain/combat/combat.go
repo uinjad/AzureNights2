@@ -32,17 +32,19 @@ type Combatant struct {
 	Stats stats.Derived
 	HP    int
 	MP    int
+
+	cooldowns map[string]int // skill ID -> turns remaining
 }
 
-// NewCombatant builds a fighter with full pools from a stat snapshot.
 func NewCombatant(name, emoji string, side Side, st stats.Derived) *Combatant {
 	return &Combatant{
-		Name:  name,
-		Emoji: emoji,
-		Side:  side,
-		Stats: st,
-		HP:    st.MaxHP,
-		MP:    st.MaxMP,
+		Name:      name,
+		Emoji:     emoji,
+		Side:      side,
+		Stats:     st,
+		HP:        st.MaxHP,
+		MP:        st.MaxMP,
+		cooldowns: make(map[string]int),
 	}
 }
 
