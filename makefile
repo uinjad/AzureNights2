@@ -14,3 +14,6 @@ run:
 
 tidy:
 	go mod tidy
+
+balance:
+	go run ./cmd/balance

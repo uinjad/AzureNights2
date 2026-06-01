@@ -11,6 +11,7 @@ package class
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/uinjad/AzureNights2/internal/domain/faction"
 	"github.com/uinjad/AzureNights2/internal/domain/stats"
@@ -150,4 +151,16 @@ func (t *Tree) CumulativePrimary(to ID) (stats.Primary, bool) {
 		sum.MEN += c.Bonus.MEN
 	}
 	return sum, true
+}
+
+// All returns every class in the tree, sorted by ID for deterministic
+// iteration. It is a read accessor for tools (the balancer) and UIs that need
+// to enumerate content without knowing it in advance.
+func (t *Tree) All() []Class {
+	out := make([]Class, 0, len(t.classes))
+	for _, c := range t.classes {
+		out = append(out, c)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
 }
