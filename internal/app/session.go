@@ -64,6 +64,13 @@ func (s *Session) NewGame(heroName string) error {
 		s.Spawns = append(s.Spawns, Spawn{Pos: p.Pos, DefID: p.DefID})
 	}
 	s.Battle, s.curSpawn = nil, -1
+
+	for _, id := range []string{"iron_sword", "padded_robe"} {
+		if it, ok := s.reg.Items[id]; ok {
+			hero.AddItem(it)
+		}
+	}
+
 	s.logf("%s sets out into %s.", hero.Name, md.Name)
 	return nil
 }
@@ -260,4 +267,26 @@ func (s *Session) snapshot() *Snapshot {
 
 func (s *Session) logf(format string, a ...any) {
 	s.Log = append(s.Log, fmt.Sprintf(format, a...))
+}
+
+// AdvanceTo advances the hero onto the named class branch.
+func (s *Session) AdvanceTo(id string) error { return s.AdvanceClass(class.ID(id)) }
+
+// EquipFromInventory equips the bag item at idx, returning whatever occupied
+// that slot back to the bag.
+func (s *Session) EquipFromInventory(idx int) error {
+	inv := s.Hero.Inventory
+	if idx < 0 || idx >= len(inv) {
+		return ErrInvalidItem
+	}
+	it := inv[idx]
+	s.Hero.Inventory = append(inv[:idx], inv[idx+1:]...) // take it out of the bag
+	if old, ok := s.Hero.Equipment[it.Slot]; ok {
+		s.Hero.Inventory = append(s.Hero.Inventory, old) // old gear goes back
+	}
+	if err := s.Hero.Equip(s.reg.Classes, it); err != nil {
+		return err
+	}
+	s.logf("Equipped %s.", it.Name)
+	return nil
 }

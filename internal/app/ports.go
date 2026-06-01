@@ -39,4 +39,5 @@ type Spawn struct {
 var (
 	ErrBusy        = errors.New("app: not allowed during battle")
 	ErrNotInBattle = errors.New("app: no battle in progress")
+	ErrInvalidItem = errors.New("app: invalid inventory item")
 )

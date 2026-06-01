@@ -11,6 +11,8 @@ import (
 
 func (m Model) View() string {
 	switch m.mode {
+	case modeMenu:
+		return m.viewMenu()
 	case modeBattle:
 		return m.viewBattle()
 	case modeGameOver:
@@ -33,7 +35,7 @@ func (m Model) viewExploration() string {
 
 	top := lipgloss.JoinHorizontal(lipgloss.Top, mapBox, "  ", panelStyle().Render(m.renderStatus()))
 	logBox := panelStyle().Width(lipgloss.Width(top) - 2).Render(m.renderLog())
-	footer := dimStyle().Render(" arrows/wasd move · ctrl+s save · q quit ")
+	footer := dimStyle().Render(" arrows/wasd move · c character · ctrl+s save · q quit ")
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, top, logBox, footer)
 }
@@ -194,4 +196,34 @@ func (m Model) menuItem(idx int, label string, usable bool) string {
 		style = style.Foreground(lipgloss.Color("220")).Bold(true)
 	}
 	return style.Render(cursor + label)
+}
+
+func (m Model) viewMenu() string {
+	h := m.session.HeroView()
+	eq := m.session.EquippedView()
+
+	stats := strings.Join([]string{
+		fmt.Sprintf("%s — %s  Lv%d", h.Name, h.ClassName, h.Level),
+		fmt.Sprintf("HP %d/%d   MP %d/%d", h.HP, h.MaxHP, h.MP, h.MaxMP),
+		fmt.Sprintf("Weapon: %s", eq.Weapon),
+		fmt.Sprintf("Armor:  %s", eq.Armor),
+	}, "\n")
+
+	actions := m.menuActions()
+	var rows []string
+	if len(actions) == 0 {
+		rows = append(rows, dimStyle().Render("  (nothing to do right now)"))
+	}
+	for i, a := range actions {
+		cursor, style := "  ", lipgloss.NewStyle()
+		if i == m.mMenu {
+			cursor = "▸ "
+			style = style.Foreground(lipgloss.Color("220")).Bold(true)
+		}
+		rows = append(rows, style.Render(cursor+a.label))
+	}
+
+	box := panelStyle().Render(stats + "\n\n" + strings.Join(rows, "\n"))
+	hint := dimStyle().Render(" ↑/↓ choose · enter select · c/esc close · q quit ")
+	return lipgloss.JoinVertical(lipgloss.Left, box, hint)
 }

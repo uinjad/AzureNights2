@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/uinjad/AzureNights2/internal/domain/combat"
+	"github.com/uinjad/AzureNights2/internal/domain/item"
 	"github.com/uinjad/AzureNights2/internal/domain/world"
 )
 
@@ -113,4 +114,58 @@ func (s *Session) BattleSkills() []SkillOption {
 		}
 	}
 	return out
+}
+
+// AdvanceOption is a class branch the hero may take right now.
+type AdvanceOption struct {
+	ID   string
+	Name string
+}
+
+// AdvancementView lists the branches the hero currently qualifies for.
+func (s *Session) AdvancementView() []AdvanceOption {
+	var out []AdvanceOption
+	for _, c := range s.reg.Classes.Options(s.Hero.ClassID, s.Hero.Level) {
+		out = append(out, AdvanceOption{ID: string(c.ID), Name: c.Name})
+	}
+	return out
+}
+
+// InventoryItem is a bag entry for the menu.
+type InventoryItem struct {
+	Name  string
+	Emoji string
+	Slot  string
+}
+
+// InventoryView lists the hero's unequipped gear.
+func (s *Session) InventoryView() []InventoryItem {
+	out := make([]InventoryItem, 0, len(s.Hero.Inventory))
+	for _, it := range s.Hero.Inventory {
+		out = append(out, InventoryItem{Name: it.Name, Emoji: it.Emoji, Slot: slotName(it.Slot)})
+	}
+	return out
+}
+
+// EquippedView shows what the hero currently wears.
+type EquippedView struct {
+	Weapon string
+	Armor  string
+}
+
+func (s *Session) EquippedView() EquippedView {
+	name := func(sl item.Slot) string {
+		if it, ok := s.Hero.Equipment[sl]; ok {
+			return it.Emoji + " " + it.Name
+		}
+		return "—"
+	}
+	return EquippedView{Weapon: name(item.Weapon), Armor: name(item.Armor)}
+}
+
+func slotName(sl item.Slot) string {
+	if sl == item.Weapon {
+		return "Weapon"
+	}
+	return "Armor"
 }

@@ -33,6 +33,7 @@ type Character struct {
 	MP int
 
 	Equipment map[item.Slot]item.Item
+	Inventory []item.Item
 }
 
 // New creates a fresh hero at the root class, level 1, with full pools.
@@ -160,3 +161,6 @@ func addDerived(a, b stats.Derived) stats.Derived {
 		Init:  a.Init + b.Init,
 	}
 }
+
+// AddItem puts a piece of gear into the hero's bag.
+func (c *Character) AddItem(it item.Item) { c.Inventory = append(c.Inventory, it) }
