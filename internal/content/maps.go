@@ -20,13 +20,20 @@ type pointDTO struct {
 }
 
 type mapDTO struct {
-	Name   string             `json:"name"`
-	Spawn  pointDTO           `json:"spawn"`
-	Legend map[string]tileDTO `json:"legend"`
-	Rows   []string           `json:"rows"`
+	Name    string              `json:"name"`
+	Spawn   pointDTO            `json:"spawn"`
+	Legend  map[string]tileDTO  `json:"legend"`
+	Rows    []string            `json:"rows"`
+	Enemies []enemyPlacementDTO `json:"enemies"`
 }
 
-func loadMaps() (map[string]MapDef, error) {
+type enemyPlacementDTO struct {
+	X  int    `json:"x"`
+	Y  int    `json:"y"`
+	ID string `json:"id"`
+}
+
+func loadMaps(enemies map[string]EnemyDef) (map[string]MapDef, error) {
 	entries, err := fs.ReadDir(dataFS, "data/maps")
 	if err != nil {
 		return nil, fmt.Errorf("content: listing maps: %w", err)
@@ -43,6 +50,11 @@ func loadMaps() (map[string]MapDef, error) {
 		def, err := parseMap(b)
 		if err != nil {
 			return nil, fmt.Errorf("content: map %s: %w", e.Name(), err)
+		}
+		for _, p := range def.Enemies {
+			if _, ok := enemies[p.DefID]; !ok {
+				return nil, fmt.Errorf("content: map %s places unknown enemy %q", e.Name(), p.DefID)
+			}
 		}
 		out[strings.TrimSuffix(e.Name(), ".json")] = def
 	}
@@ -84,5 +96,9 @@ func parseMap(b []byte) (MapDef, error) {
 	if err != nil {
 		return MapDef{}, err
 	}
-	return MapDef{Name: dto.Name, Map: tm, Spawn: world.Point{X: dto.Spawn.X, Y: dto.Spawn.Y}}, nil
+	placements := make([]EnemyPlacement, 0, len(dto.Enemies))
+	for _, e := range dto.Enemies {
+		placements = append(placements, EnemyPlacement{Pos: world.Point{X: e.X, Y: e.Y}, DefID: e.ID})
+	}
+	return MapDef{Name: dto.Name, Map: tm, Spawn: world.Point{X: dto.Spawn.X, Y: dto.Spawn.Y}, Enemies: placements}, nil
 }

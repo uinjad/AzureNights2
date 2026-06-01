@@ -13,5 +13,10 @@
     "T.....T",
     "T..~..T",
     "TTTTTTT"
+  ],
+
+  "enemies": [
+    {"x":2,"y":2,"id":"goblin"},
+    {"x":4,"y":4,"id":"skeleton"}
   ]
 }

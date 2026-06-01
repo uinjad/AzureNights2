@@ -20,6 +20,20 @@ import (
 //go:embed data
 var dataFS embed.FS
 
+// EnemyPlacement marks where an enemy stands on a map.
+type EnemyPlacement struct {
+	Pos   world.Point
+	DefID string
+}
+
+// MapDef now also carries enemy placements:
+type MapDef struct {
+	Name    string
+	Map     *world.TileMap
+	Spawn   world.Point
+	Enemies []EnemyPlacement
+}
+
 // Registry is the loaded, validated game content, ready for the app layer.
 type Registry struct {
 	Classes *class.Tree
@@ -37,13 +51,6 @@ type EnemyDef struct {
 	Stats      stats.Derived
 	XPReward   int
 	GoldReward int
-}
-
-// MapDef is a loaded map plus where the hero starts on it.
-type MapDef struct {
-	Name  string
-	Map   *world.TileMap
-	Spawn world.Point
 }
 
 // Load reads and validates every content file. Order matters: skills load first
@@ -65,7 +72,7 @@ func Load() (*Registry, error) {
 	if err != nil {
 		return nil, err
 	}
-	maps, err := loadMaps()
+	maps, err := loadMaps(enemies)
 	if err != nil {
 		return nil, err
 	}
