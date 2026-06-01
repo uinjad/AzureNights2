@@ -86,10 +86,6 @@ func (m Model) renderLog() string {
 	return strings.Join(log, "\n")
 }
 
-func (m Model) viewBattle() string {
-	return alertStyle().Render("⚔  A battle has begun!\n\nCombat controls arrive in the next step.\nPress q to quit.")
-}
-
 func (m Model) viewGameOver() string {
 	return alertStyle().Render("💀  You have fallen.\n\nPress q to quit.")
 }
@@ -147,4 +143,55 @@ func bar(cur, max, width int) string {
 		filled = width
 	}
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+}
+
+func (m Model) viewBattle() string {
+	bv, ok := m.session.BattleView()
+	if !ok {
+		return ""
+	}
+
+	var lines []string
+	for _, e := range bv.Enemies {
+		lines = append(lines, fmt.Sprintf("%s %-12s HP %s %d/%d",
+			e.Emoji, e.Name, bar(e.HP, e.MaxHP, 12), e.HP, e.MaxHP))
+	}
+	p := bv.Player
+	lines = append(lines, "",
+		fmt.Sprintf("🧝 %-12s HP %s %d/%d", p.Name, bar(p.HP, p.MaxHP, 12), p.HP, p.MaxHP),
+		fmt.Sprintf("   %-12s MP %s %d/%d", "", bar(p.MP, p.MaxMP, 12), p.MP, p.MaxMP),
+		"")
+
+	lines = append(lines, m.menuItem(0, "⚔ Attack", true))
+	for i, sk := range m.session.BattleSkills() {
+		lines = append(lines, m.menuItem(i+1, fmt.Sprintf("%s %s (%d MP)", sk.Emoji, sk.Name, sk.MPCost), sk.Usable))
+	}
+
+	battleBox := alertStyle().Render(strings.Join(lines, "\n"))
+
+	log := bv.Log
+	const n = 4
+	if len(log) > n {
+		log = log[len(log)-n:]
+	}
+	logBox := panelStyle().Render(strings.Join(log, "\n"))
+	hint := dimStyle().Render(" ↑/↓ choose · enter act · q quit ")
+
+	return lipgloss.JoinVertical(lipgloss.Left, battleBox, logBox, hint)
+}
+
+// menuItem renders one action row: a cursor when selected, greyed when unusable.
+func (m Model) menuItem(idx int, label string, usable bool) string {
+	cursor := "  "
+	if idx == m.bMenu {
+		cursor = "▸ "
+	}
+	style := lipgloss.NewStyle()
+	switch {
+	case !usable:
+		style = style.Foreground(lipgloss.Color("240"))
+	case idx == m.bMenu:
+		style = style.Foreground(lipgloss.Color("220")).Bold(true)
+	}
+	return style.Render(cursor + label)
 }

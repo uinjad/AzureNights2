@@ -1,10 +1,8 @@
-// Package tui is the terminal adapter: a Bubble Tea program that drives an
-// app.Session. It follows the Elm architecture — Update mutates state in response
-// to messages, View renders it — and switches scenes with a small mode state
-// machine. It depends only on the app's use-cases and view models.
 package tui
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/uinjad/AzureNights2/internal/app"
@@ -19,10 +17,21 @@ const (
 	modeGameOver
 )
 
+// tickMsg is delivered on the world clock's interval.
+type tickMsg time.Time
+
+// tickEvery schedules the next world tick. Bubble Tea runs the timer on its own
+// goroutine and delivers the result as a message, so the game loop stays
+// single-threaded and lock-free — the framework is the concurrency boundary.
+func tickEvery() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+}
+
 // Model is the Bubble Tea adapter over a game session.
 type Model struct {
 	session *app.Session
 	mode    mode
+	bMenu   int // cursor in the battle action menu
 }
 
 // New wraps a started session in a TUI model.
@@ -30,11 +39,17 @@ func New(session *app.Session) Model {
 	return Model{session: session, mode: modeFor(session)}
 }
 
-func (m Model) Init() tea.Cmd { return nil }
+// Init starts the world clock ticking.
+func (m Model) Init() tea.Cmd { return tickEvery() }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
-		return m.handleKey(key)
+	switch msg := msg.(type) {
+	case tickMsg:
+		m.session.Tick() // advances the living world; a no-op during battle
+		m.mode = modeFor(m.session)
+		return m, tickEvery() // keep the clock running
+	case tea.KeyMsg:
+		return m.handleKey(msg)
 	}
 	return m, nil
 }
@@ -47,11 +62,48 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		_ = m.session.Save()
 		return m, nil
 	}
-	if m.mode == modeExploration {
-		if dir, ok := dirFromKey(key.String()); ok {
-			_ = m.session.Move(dir)
-			m.mode = modeFor(m.session) // a move may have started a battle
+	switch m.mode {
+	case modeExploration:
+		return m.updateExploration(key)
+	case modeBattle:
+		return m.updateBattle(key)
+	}
+	return m, nil
+}
+
+func (m Model) updateExploration(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if dir, ok := dirFromKey(key.String()); ok {
+		_ = m.session.Move(dir)
+		m.mode = modeFor(m.session)
+		if m.mode == modeBattle {
+			m.bMenu = 0
 		}
+	}
+	return m, nil
+}
+
+func (m Model) updateBattle(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	skills := m.session.BattleSkills()
+	options := 1 + len(skills) // Attack + each known skill
+	switch key.String() {
+	case "up", "w":
+		if m.bMenu > 0 {
+			m.bMenu--
+		}
+	case "down", "s":
+		if m.bMenu < options-1 {
+			m.bMenu++
+		}
+	case "enter", " ":
+		if m.bMenu == 0 {
+			_ = m.session.Attack(0) // single enemy in MVP -> target 0
+		} else if opt := skills[m.bMenu-1]; opt.Usable {
+			_ = m.session.UseSkill(opt.ID, 0)
+		} else {
+			return m, nil // unusable choice; ignore
+		}
+		m.mode = modeFor(m.session)
+		m.bMenu = 0
 	}
 	return m, nil
 }
