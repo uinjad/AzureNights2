@@ -1,0 +1,4 @@
+[
+  {"id":"iron_sword","name":"Iron Sword","emoji":"🗡️","slot":"weapon","bonus":{"p_atk":10}},
+  {"id":"padded_robe","name":"Padded Robe","emoji":"🧥","slot":"armor","bonus":{"p_def":6,"max_hp":20}}
+]

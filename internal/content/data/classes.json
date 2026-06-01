@@ -1,0 +1,16 @@
+{
+  "root": "adventurer",
+  "classes": [
+    {
+      "id": "adventurer", "name": "Adventurer",
+      "bonus": {"str":4,"dex":4,"con":4,"int":4,"wit":4,"men":4},
+      "skills": [],
+      "advances": [
+        {"to":"fighter","min_level":5},
+        {"to":"mage","min_level":5}
+      ]
+    },
+    {"id":"fighter","name":"Fighter","bonus":{"str":6,"con":4},"skills":["power_strike"]},
+    {"id":"mage","name":"Mage","bonus":{"int":6,"men":4},"skills":["firebolt"]}
+  ]
+}

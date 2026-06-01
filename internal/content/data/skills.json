@@ -1,0 +1,5 @@
+[
+  {"id":"power_strike","name":"Power Strike","emoji":"💥","kind":"physical","mp_cost":4,"cooldown":0,"power":8},
+  {"id":"firebolt","name":"Firebolt","emoji":"🔥","kind":"magical","mp_cost":6,"cooldown":0,"power":12},
+  {"id":"meteor","name":"Meteor","emoji":"☄️","kind":"magical","mp_cost":18,"cooldown":3,"power":40}
+]
