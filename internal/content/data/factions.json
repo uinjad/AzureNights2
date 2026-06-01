@@ -1,0 +1,9 @@
+{
+  "advantage_mult": 1.08,
+  "disadvantage_mult": 0.95,
+  "factions": [
+    {"id": "solar",    "name": "Solar Order",     "beats": "illumite"},
+    {"id": "illumite", "name": "Illumite League", "beats": "lawful"},
+    {"id": "lawful",   "name": "Lawful Union",    "beats": "solar"}
+  ]
+}

@@ -28,11 +28,14 @@ type Derived struct {
 	PDef  int // physical defense
 	MDef  int // magical defense
 	Init  int // initiative: higher acts earlier in the turn order
+	Crit  int
 }
 
-// Derive computes base derived stats. The formulas are intentionally simple and
-// linear for now — they are balancing knobs, not sacred constants.
 func Derive(p Primary, level int) Derived {
+	crit := p.DEX
+	if crit > 50 {
+		crit = 50
+	}
 	return Derived{
 		MaxHP: 50 + p.CON*8 + level*10,
 		MaxMP: 20 + p.MEN*6 + level*5,
@@ -41,5 +44,6 @@ func Derive(p Primary, level int) Derived {
 		PDef:  p.CON + level,
 		MDef:  p.MEN + level,
 		Init:  p.DEX,
+		Crit:  crit,
 	}
 }

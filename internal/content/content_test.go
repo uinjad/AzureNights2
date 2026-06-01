@@ -3,6 +3,8 @@ package content
 import (
 	"strings"
 	"testing"
+
+	"github.com/uinjad/AzureNights2/internal/domain/faction"
 )
 
 func TestLoadAssemblesRegistry(t *testing.T) {
@@ -13,8 +15,11 @@ func TestLoadAssemblesRegistry(t *testing.T) {
 	if reg.Classes.Root().ID != "adventurer" {
 		t.Errorf("unexpected root class: %q", reg.Classes.Root().ID)
 	}
-	if _, ok := reg.Skills["firebolt"]; !ok {
-		t.Error("firebolt skill missing")
+	if _, ok := reg.Skills["arcane_bolt"]; !ok {
+		t.Error("arcane_bolt skill missing")
+	}
+	if reg.Factions.Relation("solar", "illumite") != faction.Advantage {
+		t.Error("solar should beat illumite")
 	}
 	if _, ok := reg.Items["iron_sword"]; !ok {
 		t.Error("iron_sword item missing")

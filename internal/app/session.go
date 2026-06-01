@@ -194,30 +194,6 @@ func (s *Session) LoadGame() error {
 
 // --- internals ---
 
-func (s *Session) startBattle(idx int) {
-	def := s.reg.Enemies[s.Spawns[idx].DefID]
-	s.Battle = combat.NewBattle(s.buildHeroCombatant(), s.buildEnemyCombatant(def))
-	s.curSpawn = idx
-	s.logf("A %s blocks your path!", def.Name)
-	s.resolveBattleProgress()
-}
-
-func (s *Session) buildHeroCombatant() *combat.Combatant {
-	d, _ := s.Hero.EffectiveStats(s.reg.Classes)
-	c := combat.NewCombatant(s.Hero.Name, "🧝", combat.SidePlayer, d)
-	c.HP, c.MP = s.Hero.HP, s.Hero.MP // carry exploration pools into battle
-	return c
-}
-
-func (s *Session) buildEnemyCombatant(def content.EnemyDef) *combat.Combatant {
-	st := def.Stats
-	if bonus := s.Clock.EnemyPowerBonus(); bonus > 0 { // living-world hook
-		st.PAtk += bonus
-		st.MAtk += bonus
-	}
-	return combat.NewCombatant(def.Name, def.Emoji, combat.SideEnemy, st)
-}
-
 func (s *Session) resolveBattleProgress() {
 	for s.Battle.Phase == combat.Ongoing && !s.Battle.IsPlayerTurn() {
 		_ = s.Battle.Step()
@@ -289,4 +265,37 @@ func (s *Session) EquipFromInventory(idx int) error {
 	}
 	s.logf("Equipped %s.", it.Name)
 	return nil
+}
+
+func (s *Session) startBattle(idx int) {
+	def := s.reg.Enemies[s.Spawns[idx].DefID]
+	s.Battle = combat.NewBattle(
+		s.buildHeroCombatant(),
+		[]*combat.Combatant{s.buildEnemyCombatant(def)},
+		combat.WithRNG(s.roll),
+		combat.WithFactions(s.reg.Factions),
+	)
+	s.curSpawn = idx
+	s.logf("A %s blocks your path!", def.Name)
+	s.resolveBattleProgress()
+}
+
+func (s *Session) buildHeroCombatant() *combat.Combatant {
+	d, _ := s.Hero.EffectiveStats(s.reg.Classes)
+	cls, _ := s.reg.Classes.Get(s.Hero.ClassID)
+	c := combat.NewCombatant(s.Hero.Name, "🧝", combat.SidePlayer, d)
+	c.Faction = cls.Faction
+	c.HP, c.MP = s.Hero.HP, s.Hero.MP
+	return c
+}
+
+func (s *Session) buildEnemyCombatant(def content.EnemyDef) *combat.Combatant {
+	st := def.Stats
+	if bonus := s.Clock.EnemyPowerBonus(); bonus > 0 {
+		st.PAtk += bonus
+		st.MAtk += bonus
+	}
+	c := combat.NewCombatant(def.Name, def.Emoji, combat.SideEnemy, st)
+	c.Faction = def.Faction
+	return c
 }

@@ -12,50 +12,17 @@ import (
 
 	"github.com/uinjad/AzureNights2/internal/domain/class"
 	"github.com/uinjad/AzureNights2/internal/domain/combat"
+	"github.com/uinjad/AzureNights2/internal/domain/faction"
 	"github.com/uinjad/AzureNights2/internal/domain/item"
 	"github.com/uinjad/AzureNights2/internal/domain/stats"
 	"github.com/uinjad/AzureNights2/internal/domain/world"
 )
 
-//go:embed data
-var dataFS embed.FS
-
-// EnemyPlacement marks where an enemy stands on a map.
-type EnemyPlacement struct {
-	Pos   world.Point
-	DefID string
-}
-
-// MapDef now also carries enemy placements:
-type MapDef struct {
-	Name    string
-	Map     *world.TileMap
-	Spawn   world.Point
-	Enemies []EnemyPlacement
-}
-
-// Registry is the loaded, validated game content, ready for the app layer.
-type Registry struct {
-	Classes *class.Tree
-	Skills  map[string]combat.Skill
-	Items   map[string]item.Item
-	Enemies map[string]EnemyDef
-	Maps    map[string]MapDef
-}
-
-// EnemyDef is a template a battle turns into a combat.Combatant.
-type EnemyDef struct {
-	ID         string
-	Name       string
-	Emoji      string
-	Stats      stats.Derived
-	XPReward   int
-	GoldReward int
-}
-
-// Load reads and validates every content file. Order matters: skills load first
-// so classes can be checked against them.
 func Load() (*Registry, error) {
+	factions, err := loadFactions()
+	if err != nil {
+		return nil, err
+	}
 	skills, err := loadSkills()
 	if err != nil {
 		return nil, err
@@ -76,7 +43,48 @@ func Load() (*Registry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Registry{Classes: classes, Skills: skills, Items: items, Enemies: enemies, Maps: maps}, nil
+	return &Registry{
+		Factions: factions, Classes: classes, Skills: skills,
+		Items: items, Enemies: enemies, Maps: maps,
+	}, nil
+}
+
+//go:embed data
+var dataFS embed.FS
+
+// EnemyPlacement marks where an enemy stands on a map.
+type EnemyPlacement struct {
+	Pos   world.Point
+	DefID string
+}
+
+// MapDef now also carries enemy placements:
+type MapDef struct {
+	Name    string
+	Map     *world.TileMap
+	Spawn   world.Point
+	Enemies []EnemyPlacement
+}
+
+// Registry is the loaded, validated game content, ready for the app layer.
+type Registry struct {
+	Factions *faction.Table
+	Classes  *class.Tree
+	Skills   map[string]combat.Skill
+	Items    map[string]item.Item
+	Enemies  map[string]EnemyDef
+	Maps     map[string]MapDef
+}
+
+// EnemyDef is a template a battle turns into a combat.Combatant.
+type EnemyDef struct {
+	ID         string
+	Faction    faction.ID
+	Name       string
+	Emoji      string
+	Stats      stats.Derived
+	XPReward   int
+	GoldReward int
 }
 
 func readJSON[T any](name string) (T, error) {
@@ -119,10 +127,14 @@ type derivedDTO struct {
 	PDef  int `json:"p_def"`
 	MDef  int `json:"m_def"`
 	Init  int `json:"init"`
+	Crit  int `json:"crit"`
 }
 
 func (d derivedDTO) toDomain() stats.Derived {
-	return stats.Derived{MaxHP: d.MaxHP, MaxMP: d.MaxMP, PAtk: d.PAtk, MAtk: d.MAtk, PDef: d.PDef, MDef: d.MDef, Init: d.Init}
+	return stats.Derived{
+		MaxHP: d.MaxHP, MaxMP: d.MaxMP, PAtk: d.PAtk, MAtk: d.MAtk,
+		PDef: d.PDef, MDef: d.MDef, Init: d.Init, Crit: d.Crit,
+	}
 }
 
 // --- string enum parsers ---

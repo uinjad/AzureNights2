@@ -17,52 +17,43 @@ func TestPhysicalDamageFloorsAtOne(t *testing.T) {
 
 func TestNewCombatantStartsFull(t *testing.T) {
 	c := NewCombatant("Hero", "🧝", SidePlayer, stats.Derived{MaxHP: 100, MaxMP: 40})
-	if c.HP != 100 || c.MP != 40 {
-		t.Errorf("pools not full: HP %d MP %d", c.HP, c.MP)
-	}
-	if !c.IsAlive() {
-		t.Error("fresh combatant should be alive")
+	if c.HP != 100 || c.MP != 40 || !c.IsAlive() {
+		t.Errorf("fresh combatant should start full and alive")
 	}
 }
 
-func TestAttackAppliesDamage(t *testing.T) {
+func TestHitAppliesVarianceNoCrit(t *testing.T) {
 	hero := NewCombatant("Hero", "🧝", SidePlayer, stats.Derived{PAtk: 20})
-	goblin := NewCombatant("Goblin", "👹", SideEnemy, stats.Derived{MaxHP: 30, PDef: 8})
+	goblin := NewCombatant("Goblin", "👹", SideEnemy, stats.Derived{MaxHP: 100, PDef: 8})
+	b := NewBattle(hero, []*Combatant{goblin}, WithRNG(func() float64 { return 1.0 }))
 
-	res := hero.Attack(goblin)
-	if res.Damage != 12 || goblin.HP != 18 {
-		t.Fatalf("want 12 dmg leaving 18 HP, got %d dmg / %d HP", res.Damage, goblin.HP)
-	}
-	if res.Defeated {
-		t.Error("goblin should survive")
+	b.hit(hero, goblin, Physical, 0, "") // base 12 × 1.15 = 13, rng 1.0 -> no crit
+	if goblin.HP != 87 {
+		t.Errorf("want 87 HP after a 13 hit, got %d", goblin.HP)
 	}
 }
 
-func TestAttackReportsDefeat(t *testing.T) {
-	hero := NewCombatant("Hero", "🧝", SidePlayer, stats.Derived{PAtk: 20})
-	rat := NewCombatant("Rat", "🐀", SideEnemy, stats.Derived{MaxHP: 12, PDef: 8})
+func TestHitCritsOnLowRoll(t *testing.T) {
+	hero := NewCombatant("Hero", "🧝", SidePlayer, stats.Derived{PAtk: 20, Crit: 50})
+	goblin := NewCombatant("Goblin", "👹", SideEnemy, stats.Derived{MaxHP: 200, PDef: 8})
+	b := NewBattle(hero, []*Combatant{goblin}, WithRNG(func() float64 { return 0.0 }))
 
-	res := hero.Attack(rat)
-	if !res.Defeated || rat.HP != 0 {
-		t.Fatalf("rat should be defeated at 0 HP, got defeated=%v HP=%d", res.Defeated, rat.HP)
-	}
-	if rat.IsAlive() {
-		t.Error("defeated combatant must not be alive")
+	b.hit(hero, goblin, Physical, 0, "") // 0.0 -> variance 0.85, crit fires ×2; 12×0.85×2=20
+	if goblin.HP != 180 {
+		t.Errorf("crit should deal 20, leaving 180, got %d", goblin.HP)
 	}
 }
 
 func TestOrderByInitiativeStable(t *testing.T) {
 	a := NewCombatant("A", "", SidePlayer, stats.Derived{Init: 5})
-	b := NewCombatant("B", "", SideEnemy, stats.Derived{Init: 9})
+	bb := NewCombatant("B", "", SideEnemy, stats.Derived{Init: 9})
 	c := NewCombatant("C", "", SideEnemy, stats.Derived{Init: 9})
 	d := NewCombatant("D", "", SidePlayer, stats.Derived{Init: 3})
 
-	got := Order([]*Combatant{a, b, c, d})
-
-	wantNames := []string{"B", "C", "A", "D"} // 9s keep input order, then 5, then 3
-	for i, w := range wantNames {
+	got := Order([]*Combatant{a, bb, c, d})
+	for i, w := range []string{"B", "C", "A", "D"} {
 		if got[i].Name != w {
-			t.Errorf("position %d: want %s, got %s", i, w, got[i].Name)
+			t.Errorf("pos %d: want %s, got %s", i, w, got[i].Name)
 		}
 	}
 }

@@ -18,6 +18,7 @@ type advanceDTO struct {
 type classDTO struct {
 	ID       string       `json:"id"`
 	Name     string       `json:"name"`
+	Faction  string       `json:"faction"`
 	Bonus    primaryDTO   `json:"bonus"`
 	Skills   []string     `json:"skills"`
 	Advances []advanceDTO `json:"advances"`
@@ -115,12 +116,13 @@ func loadItems() (map[string]item.Item, error) {
 // --- enemies ---
 
 type enemyDTO struct {
-	ID    string     `json:"id"`
-	Name  string     `json:"name"`
-	Emoji string     `json:"emoji"`
-	Stats derivedDTO `json:"stats"`
-	XP    int        `json:"xp"`
-	Gold  int        `json:"gold"`
+	ID      string     `json:"id"`
+	Name    string     `json:"name"`
+	Faction string     `json:"faction"`
+	Emoji   string     `json:"emoji"`
+	Stats   derivedDTO `json:"stats"`
+	XP      int        `json:"xp"`
+	Gold    int        `json:"gold"`
 }
 
 func loadEnemies() (map[string]EnemyDef, error) {

@@ -1,4 +1,4 @@
 [
-  {"id":"goblin","name":"Goblin","emoji":"👹","stats":{"max_hp":24,"p_atk":9,"p_def":4,"init":5},"xp":15,"gold":8},
-  {"id":"skeleton","name":"Skeleton","emoji":"💀","stats":{"max_hp":40,"p_atk":13,"p_def":7,"init":4},"xp":30,"gold":18}
+  {"id":"goblin","name":"Goblin","emoji":"👹","faction":"illumite","stats":{"max_hp":24,"p_atk":9,"p_def":4,"init":5},"xp":15,"gold":8},
+  {"id":"skeleton","name":"Skeleton","emoji":"💀","faction":"lawful","stats":{"max_hp":40,"p_atk":13,"p_def":7,"init":4},"xp":30,"gold":18}
 ]

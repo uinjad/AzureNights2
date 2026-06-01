@@ -1,5 +1,8 @@
 [
-  {"id":"power_strike","name":"Power Strike","emoji":"💥","kind":"physical","mp_cost":4,"cooldown":0,"power":8},
-  {"id":"firebolt","name":"Firebolt","emoji":"🔥","kind":"magical","mp_cost":6,"cooldown":0,"power":12},
-  {"id":"meteor","name":"Meteor","emoji":"☄️","kind":"magical","mp_cost":18,"cooldown":3,"power":40}
+  {"id":"radiant_smite","name":"Radiant Smite","emoji":"🌟","kind":"magical","mp_cost":8,"cooldown":1,"power":12},
+  {"id":"venom_fang","name":"Venom Fang","emoji":"🐍","kind":"physical","mp_cost":6,"cooldown":1,"power":10},
+  {"id":"riot_strike","name":"Riot Strike","emoji":"✊","kind":"physical","mp_cost":5,"cooldown":2,"power":11},
+  {"id":"cleave","name":"Cleave","emoji":"💥","kind":"physical","mp_cost":6,"cooldown":2,"power":13},
+  {"id":"aimed_shot","name":"Aimed Shot","emoji":"🏹","kind":"physical","mp_cost":5,"cooldown":1,"power":14},
+  {"id":"arcane_bolt","name":"Arcane Bolt","emoji":"🔮","kind":"magical","mp_cost":10,"cooldown":0,"power":15}
 ]

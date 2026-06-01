@@ -1,4 +1,4 @@
- // Package class models the character advancement tree, in the spirit of
+// Package class models the character advancement tree, in the spirit of
 // Lineage 2 / Ragnarok Online: every character starts at a root class and
 // advances along branches as it levels up, each branch granting attribute
 // bonuses and unlocking skills.
@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/uinjad/AzureNights2/internal/domain/faction"
 	"github.com/uinjad/AzureNights2/internal/domain/stats"
 )
 
@@ -28,6 +29,7 @@ type Advance struct {
 type Class struct {
 	ID       ID
 	Name     string
+	Faction  faction.ID    // empty = neutral
 	Bonus    stats.Primary // attributes granted by reaching this class
 	Skills   []string      // skill IDs unlocked here; resolved by the content layer
 	Advances []Advance     // branches available from this class

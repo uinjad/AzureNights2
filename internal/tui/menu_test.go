@@ -54,12 +54,12 @@ func TestAdvanceThroughMenu(t *testing.T) {
 	}
 
 	m := openMenu(New(s))
-	if view := m.View(); !strings.Contains(view, "Advance to Fighter") {
+	if view := m.View(); !strings.Contains(view, "Advance to Solar Initiate") {
 		t.Fatalf("menu should offer advancement:\n%s", view)
 	}
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter}) // first row = advancement
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter}) // first branch = Solar Initiate
 	_ = updated.(Model)
-	if s.Hero.ClassID != "fighter" {
-		t.Errorf("expected to advance to fighter, got %q", s.Hero.ClassID)
+	if s.Hero.ClassID != "solar_initiate" {
+		t.Errorf("expected solar_initiate, got %q", s.Hero.ClassID)
 	}
 }

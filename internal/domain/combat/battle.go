@@ -3,9 +3,11 @@ package combat
 import (
 	"errors"
 	"fmt"
+	"math/rand"
+
+	"github.com/uinjad/AzureNights2/internal/domain/faction"
 )
 
-// Phase is the high-level battle outcome state.
 type Phase int
 
 const (
@@ -19,43 +21,47 @@ var (
 	ErrInvalidTarget = errors.New("combat: invalid or defeated target")
 )
 
-// Battle is the turn-based state machine. Drive it from outside: when it is the
-// player's turn, supply a player action; otherwise call Step to let an enemy
-// act. The same loop runs under a TUI today or a headless server later.
-type Battle struct {
-	order []*Combatant
-	turn  int
-	Round int
-	Phase Phase
-	Log   []string
+// Damage roll bounds and crit multiplier — tuned by the balance simulator.
+const (
+	varianceLo = 0.85
+	varianceHi = 1.15
+	critMult   = 2.0
+)
 
-	// AI decides an enemy's action on its turn. Swapping it changes enemy
-	// behavior without touching the engine (Strategy pattern). Defaults to BasicAI.
-	AI func(b *Battle, enemy *Combatant)
+// Battle is the turn-based state machine. Randomness and the faction table are
+// injected, so the engine stays deterministic under test and lock-free at run.
+type Battle struct {
+	order    []*Combatant
+	turn     int
+	Round    int
+	Phase    Phase
+	Log      []string
+	AI       func(b *Battle, enemy *Combatant)
+	rng      func() float64
+	factions *faction.Table
 }
 
-// NewBattle seats the player and enemies in initiative order.
-func NewBattle(player *Combatant, enemies ...*Combatant) *Battle {
+type Option func(*Battle)
+
+func WithRNG(rng func() float64) Option    { return func(b *Battle) { b.rng = rng } }
+func WithFactions(t *faction.Table) Option { return func(b *Battle) { b.factions = t } }
+
+func NewBattle(player *Combatant, enemies []*Combatant, opts ...Option) *Battle {
 	all := append([]*Combatant{player}, enemies...)
-	b := &Battle{
-		order: Order(all),
-		Round: 1,
-		Phase: Ongoing,
-		AI:    BasicAI,
+	b := &Battle{order: Order(all), Round: 1, Phase: Ongoing, AI: BasicAI, rng: rand.Float64}
+	for _, o := range opts {
+		o(b)
 	}
 	b.logf("⚔ Battle begins!")
 	return b
 }
 
-// Current is whoever acts now.
 func (b *Battle) Current() *Combatant { return b.order[b.turn] }
 
-// IsPlayerTurn reports whether the engine is waiting for player input.
 func (b *Battle) IsPlayerTurn() bool {
 	return b.Phase == Ongoing && b.Current().Side == SidePlayer
 }
 
-// Player returns the single player-controlled combatant.
 func (b *Battle) Player() *Combatant {
 	for _, c := range b.order {
 		if c.Side == SidePlayer {
@@ -65,7 +71,6 @@ func (b *Battle) Player() *Combatant {
 	return nil
 }
 
-// Enemies returns all enemy combatants in initiative order (alive or not).
 func (b *Battle) Enemies() []*Combatant {
 	var out []*Combatant
 	for _, c := range b.order {
@@ -76,7 +81,6 @@ func (b *Battle) Enemies() []*Combatant {
 	return out
 }
 
-// PlayerAttack performs a basic attack on the enemy at the given index.
 func (b *Battle) PlayerAttack(targetIdx int) error {
 	if !b.IsPlayerTurn() {
 		return ErrNotPlayerTurn
@@ -89,7 +93,6 @@ func (b *Battle) PlayerAttack(targetIdx int) error {
 	return nil
 }
 
-// PlayerUseSkill casts a skill on the enemy at the given index.
 func (b *Battle) PlayerUseSkill(s Skill, targetIdx int) error {
 	if !b.IsPlayerTurn() {
 		return ErrNotPlayerTurn
@@ -105,9 +108,6 @@ func (b *Battle) PlayerUseSkill(s Skill, targetIdx int) error {
 	return nil
 }
 
-// Step resolves the current enemy's action through the AI and advances the
-// turn. It returns ErrNotPlayerTurn's inverse: an error only if it is actually
-// the player's turn and the caller should be supplying input instead.
 func (b *Battle) Step() error {
 	if b.Phase != Ongoing {
 		return nil
@@ -119,10 +119,7 @@ func (b *Battle) Step() error {
 	return nil
 }
 
-// BasicAI is the default enemy behavior: swing at the player.
-func BasicAI(b *Battle, enemy *Combatant) {
-	b.resolveAttack(enemy, b.Player())
-}
+func BasicAI(b *Battle, enemy *Combatant) { b.resolveAttack(enemy, b.Player()) }
 
 func (b *Battle) enemyAt(idx int) (*Combatant, error) {
 	enemies := b.Enemies()
@@ -132,24 +129,61 @@ func (b *Battle) enemyAt(idx int) (*Combatant, error) {
 	return enemies[idx], nil
 }
 
-func (b *Battle) resolveAttack(attacker, target *Combatant) {
-	res := attacker.Attack(target)
-	b.logf("%s hits %s for %d.", res.Attacker, res.Target, res.Damage)
-	if res.Defeated {
-		b.logf("%s is defeated!", res.Target)
+// hit resolves one strike: subtractive base, then variance, then a crit roll
+// against the attacker's DEX-derived crit chance, then the faction multiplier.
+func (b *Battle) hit(attacker, target *Combatant, kind DamageKind, power int, label string) {
+	var atk, def int
+	if kind == Magical {
+		atk, def = attacker.Stats.MAtk, target.Stats.MDef
+	} else {
+		atk, def = attacker.Stats.PAtk, target.Stats.PDef
 	}
+	base := PhysicalDamage(atk+power, def)
+	dmg := float64(base) * (varianceLo + b.rng()*(varianceHi-varianceLo))
+	crit := b.rng() < float64(attacker.Stats.Crit)/100.0
+	if crit {
+		dmg *= critMult
+	}
+	if b.factions != nil {
+		dmg *= b.factions.DamageMultiplier(attacker.Faction, target.Faction)
+	}
+	final := int(dmg)
+	if final < 1 {
+		final = 1
+	}
+	target.HP -= final
+	if target.HP < 0 {
+		target.HP = 0
+	}
+
+	if label == "" {
+		b.logf("%s hits %s for %d%s", attacker.Name, target.Name, final, critTag(crit))
+	} else {
+		b.logf("%s casts %s on %s for %d%s", attacker.Name, label, target.Name, final, critTag(crit))
+	}
+	if !target.IsAlive() {
+		b.logf("%s is defeated!", target.Name)
+	}
+}
+
+func critTag(c bool) string {
+	if c {
+		return " — CRIT!"
+	}
+	return ""
+}
+
+func (b *Battle) resolveAttack(attacker, target *Combatant) {
+	b.hit(attacker, target, Physical, 0, "")
 	b.afterAction()
 }
 
 func (b *Battle) resolveSkill(caster *Combatant, s Skill, target *Combatant) {
-	res, err := caster.UseSkill(s, target)
-	if err != nil {
-		return // callers guard with CanUse; defensive only
+	caster.MP -= s.MPCost
+	if s.Cooldown > 0 {
+		caster.cooldowns[s.ID] = s.Cooldown
 	}
-	b.logf("%s casts %s on %s for %d.", res.Caster, res.Skill, res.Target, res.Damage)
-	if res.Defeated {
-		b.logf("%s is defeated!", res.Target)
-	}
+	b.hit(caster, target, s.Kind, s.Power, s.Name)
 	b.afterAction()
 }
 

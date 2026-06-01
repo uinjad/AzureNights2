@@ -78,19 +78,22 @@ func TestBattleMenuListsSkillsAfterAdvancing(t *testing.T) {
 	reg, _ := content.Load()
 	s := app.New(reg, noRepo{}, app.WithRoll(func() float64 { return 1.0 }))
 	_ = s.NewGame("Aria")
+
+	// Level up and pick a faction BEFORE engaging — advancing is blocked mid-battle.
 	if _, err := s.Hero.AddXP(reg.Classes, 1000); err != nil { // reach level 5
 		t.Fatalf("AddXP: %v", err)
 	}
-	if err := s.AdvanceClass("fighter"); err != nil {
+	if err := s.AdvanceClass("solar_initiate"); err != nil {
 		t.Fatalf("AdvanceClass: %v", err)
 	}
+
 	engageFirstEnemy(t, s)
 
 	skills := s.BattleSkills()
-	if len(skills) == 0 || skills[0].ID != "power_strike" {
-		t.Fatalf("fighter should know power_strike, got %+v", skills)
+	if len(skills) == 0 || skills[0].ID != "radiant_smite" {
+		t.Fatalf("solar initiate should know radiant_smite, got %+v", skills)
 	}
-	if view := New(s).View(); !strings.Contains(view, "Power Strike") {
-		t.Errorf("battle menu should list the skill:\n%s", view)
+	if view := New(s).View(); !strings.Contains(view, "Radiant Smite") {
+		t.Errorf("battle menu should list the faction skill:\n%s", view)
 	}
 }

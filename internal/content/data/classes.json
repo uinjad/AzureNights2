@@ -1,16 +1,26 @@
 {
   "root": "adventurer",
   "classes": [
-    {
-      "id": "adventurer", "name": "Adventurer",
-      "bonus": {"str":4,"dex":4,"con":4,"int":4,"wit":4,"men":4},
-      "skills": [],
-      "advances": [
-        {"to":"fighter","min_level":5},
-        {"to":"mage","min_level":5}
-      ]
-    },
-    {"id":"fighter","name":"Fighter","bonus":{"str":6,"con":4},"skills":["power_strike"]},
-    {"id":"mage","name":"Mage","bonus":{"int":6,"men":4},"skills":["firebolt"]}
+    {"id":"adventurer","name":"Adventurer","faction":"","bonus":{"str":4,"dex":4,"con":4,"int":4,"wit":4,"men":4},
+     "advances":[{"to":"solar_initiate","min_level":5},{"to":"illumite_initiate","min_level":5},{"to":"lawful_initiate","min_level":5}]},
+
+    {"id":"solar_initiate","name":"Solar Initiate","faction":"solar","bonus":{"str":2,"dex":2,"con":2,"int":2,"wit":2,"men":2},"skills":["radiant_smite"],
+     "advances":[{"to":"solar_warrior","min_level":10},{"to":"solar_archer","min_level":10},{"to":"solar_mage","min_level":10}]},
+    {"id":"illumite_initiate","name":"Illumite Initiate","faction":"illumite","bonus":{"str":2,"dex":2,"con":2,"int":2,"wit":2,"men":2},"skills":["venom_fang"],
+     "advances":[{"to":"illumite_warrior","min_level":10},{"to":"illumite_archer","min_level":10},{"to":"illumite_mage","min_level":10}]},
+    {"id":"lawful_initiate","name":"Lawful Initiate","faction":"lawful","bonus":{"str":2,"dex":2,"con":2,"int":2,"wit":2,"men":2},"skills":["riot_strike"],
+     "advances":[{"to":"lawful_warrior","min_level":10},{"to":"lawful_archer","min_level":10},{"to":"lawful_mage","min_level":10}]},
+
+    {"id":"solar_warrior","name":"Solar Warrior","faction":"solar","bonus":{"str":7,"dex":2,"con":6},"skills":["cleave"]},
+    {"id":"solar_archer","name":"Solar Archer","faction":"solar","bonus":{"str":4,"dex":10,"con":3},"skills":["aimed_shot"]},
+    {"id":"solar_mage","name":"Solar Mage","faction":"solar","bonus":{"dex":2,"int":6,"wit":4,"men":4},"skills":["arcane_bolt"]},
+
+    {"id":"illumite_warrior","name":"Illumite Warrior","faction":"illumite","bonus":{"str":7,"dex":2,"con":6},"skills":["cleave"]},
+    {"id":"illumite_archer","name":"Illumite Archer","faction":"illumite","bonus":{"str":4,"dex":10,"con":3},"skills":["aimed_shot"]},
+    {"id":"illumite_mage","name":"Illumite Mage","faction":"illumite","bonus":{"dex":2,"int":6,"wit":4,"men":4},"skills":["arcane_bolt"]},
+
+    {"id":"lawful_warrior","name":"Lawful Warrior","faction":"lawful","bonus":{"str":7,"dex":2,"con":6},"skills":["cleave"]},
+    {"id":"lawful_archer","name":"Lawful Archer","faction":"lawful","bonus":{"str":4,"dex":10,"con":3},"skills":["aimed_shot"]},
+    {"id":"lawful_mage","name":"Lawful Mage","faction":"lawful","bonus":{"dex":2,"int":6,"wit":4,"men":4},"skills":["arcane_bolt"]}
   ]
 }

@@ -159,6 +159,7 @@ func addDerived(a, b stats.Derived) stats.Derived {
 		PDef:  a.PDef + b.PDef,
 		MDef:  a.MDef + b.MDef,
 		Init:  a.Init + b.Init,
+		Crit:  a.Crit + b.Crit,
 	}
 }
 
