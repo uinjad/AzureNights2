@@ -33,6 +33,8 @@ type Session struct {
 
 	pending []PendingRespawn
 	quests  []QuestProgress
+	cleared map[string]bool
+	won     bool
 }
 
 type Option func(*Session)
@@ -40,18 +42,16 @@ type Option func(*Session)
 func WithRoll(roll func() float64) Option { return func(s *Session) { s.roll = roll } }
 
 func New(reg *content.Registry, repo Repository, opts ...Option) *Session {
-	s := &Session{reg: reg, repo: repo, roll: rand.Float64, curSpawn: -1}
+	s := &Session{reg: reg, repo: repo, roll: rand.Float64, curSpawn: -1, cleared: map[string]bool{}}
 	for _, o := range opts {
 		o(s)
 	}
 	return s
 }
 
-// Started reports whether a game has begun (used by the UI's name screen).
 func (s *Session) Started() bool { return s.Hero != nil }
-
-// HasSave reports whether a saved game exists to load.
 func (s *Session) HasSave() bool { return s.repo.Exists() }
+func (s *Session) Won() bool     { return s.won }
 
 func (s *Session) NewGame(heroName string) error {
 	hero, err := character.New(heroName, s.reg.Classes)
@@ -62,7 +62,7 @@ func (s *Session) NewGame(heroName string) error {
 	if !ok {
 		return fmt.Errorf("app: starting map %q not found", "forest")
 	}
-	for _, id := range []string{"iron_sword", "padded_robe"} { // starter loadout
+	for _, id := range []string{"iron_sword", "padded_robe"} {
 		if it, ok := s.reg.Items[id]; ok {
 			hero.AddItem(it)
 		}
@@ -70,6 +70,8 @@ func (s *Session) NewGame(heroName string) error {
 	s.Hero = hero
 	s.Clock = world.Clock{}
 	s.Battle, s.curSpawn = nil, -1
+	s.cleared = map[string]bool{}
+	s.won = false
 
 	s.quests = s.quests[:0]
 	for _, q := range s.reg.Quests.All() {
@@ -101,6 +103,10 @@ func (s *Session) Move(dir world.Direction) error {
 		return nil
 	}
 	if p, ok := s.portalAt(next); ok {
+		if p.Locked && !s.cleared[s.MapID] {
+			s.logf("The way onward is sealed. Defeat %s first.", s.bossName())
+			return nil
+		}
 		s.enterMap(p.ToMap, p.ToPos)
 		s.logf("You travel to %s.", s.reg.Maps[p.ToMap].Name)
 		return nil
@@ -110,9 +116,6 @@ func (s *Session) Move(dir world.Direction) error {
 		return nil
 	}
 	s.PlayerPos = next
-	if s.restAt(next) {
-		s.restHero()
-	}
 	return nil
 }
 
@@ -125,21 +128,16 @@ func (s *Session) portalAt(p world.Point) (content.Portal, bool) {
 	return content.Portal{}, false
 }
 
-func (s *Session) restAt(p world.Point) bool {
-	for _, r := range s.reg.Maps[s.MapID].Rests {
-		if r == p {
-			return true
-		}
+func (s *Session) bossName() string {
+	md := s.reg.Maps[s.MapID]
+	if md.Boss == "" {
+		return "the guardian"
 	}
-	return false
+	return s.reg.Enemies[md.Boss].Name
 }
 
-func (s *Session) restHero() {
-	d, _ := s.Hero.EffectiveStats(s.reg.Classes)
-	s.Hero.HP, s.Hero.MP = d.MaxHP, d.MaxMP
-	s.logf("You rest at the campfire — HP and MP restored.")
-}
-
+// Tick advances the living world by one step: time, weather, slow regeneration,
+// and enemy respawns. Frozen during battle.
 func (s *Session) Tick() {
 	if s.InBattle() {
 		return
@@ -147,7 +145,23 @@ func (s *Session) Tick() {
 	for _, note := range s.Clock.Advance(s.roll) {
 		s.logf("%s", note)
 	}
+	s.regen()
 	s.processRespawns()
+}
+
+// regen trickles HP and MP back while exploring — the replacement for campfires.
+// It is deliberately slow so potions and careful play still matter.
+func (s *Session) regen() {
+	if s.Hero == nil || s.Hero.HP <= 0 {
+		return
+	}
+	d, _ := s.Hero.EffectiveStats(s.reg.Classes)
+	if s.Hero.HP < d.MaxHP {
+		s.Hero.HP = min(s.Hero.HP+max(1, d.MaxHP/40), d.MaxHP)
+	}
+	if s.Hero.MP < d.MaxMP {
+		s.Hero.MP = min(s.Hero.MP+max(1, d.MaxMP/60), d.MaxMP)
+	}
 }
 
 func (s *Session) Attack(targetIdx int) error {
@@ -226,7 +240,20 @@ func (s *Session) EquipFromInventory(idx int) error {
 	return nil
 }
 
-// Save persists the game and logs the result so the player sees it happened.
+func (s *Session) UsePotion(idx int) error {
+	inv := s.Hero.Inventory
+	if idx < 0 || idx >= len(inv) || inv[idx].Kind != item.Potion {
+		return ErrInvalidItem
+	}
+	p := inv[idx]
+	d, _ := s.Hero.EffectiveStats(s.reg.Classes)
+	s.Hero.HP = min(s.Hero.HP+p.Heal, d.MaxHP)
+	s.Hero.MP = min(s.Hero.MP+p.Mana, d.MaxMP)
+	s.Hero.Inventory = append(inv[:idx], inv[idx+1:]...)
+	s.logf("Used %s.", p.Name)
+	return nil
+}
+
 func (s *Session) Save() error {
 	if err := s.repo.Save(s.snapshot()); err != nil {
 		s.logf("Save failed: %v", err)
@@ -243,7 +270,11 @@ func (s *Session) LoadGame() error {
 	}
 	s.Hero, s.MapID, s.PlayerPos = snap.Hero, snap.MapID, snap.PlayerPos
 	s.Clock, s.Spawns, s.pending = snap.Clock, snap.Spawns, snap.Pending
-	s.quests = snap.Quests
+	s.quests, s.won = snap.Quests, snap.Won
+	s.cleared = snap.Cleared
+	if s.cleared == nil {
+		s.cleared = map[string]bool{}
+	}
 	s.Battle, s.curSpawn = nil, -1
 	s.logf("Game loaded.")
 	return nil
@@ -260,6 +291,9 @@ func (s *Session) enterMap(mapID string, at world.Point) {
 	}
 	s.pending = s.pending[:0]
 	s.fireQuestEvent(quest.Event{Kind: quest.ReachMap, Target: mapID})
+	if md.Boss != "" && !s.cleared[mapID] {
+		s.logf("A %s guards the way onward.", s.reg.Enemies[md.Boss].Name)
+	}
 }
 
 func (s *Session) startBattle(idx int) {
@@ -284,9 +318,6 @@ func (s *Session) buildHeroCombatant() *combat.Combatant {
 	return c
 }
 
-// buildEnemyCombatant uses the enemy's authored tier directly. Difficulty now
-// comes from which zone an enemy lives in, not from level scaling, which kept
-// fights predictable instead of swinging between trivial and lethal.
 func (s *Session) buildEnemyCombatant(def content.EnemyDef) *combat.Combatant {
 	st := def.Stats
 	if bonus := s.Clock.EnemyPowerBonus(); bonus > 0 {
@@ -324,11 +355,56 @@ func (s *Session) settleBattle() {
 			s.logf("You reach level %d!", s.Hero.Level)
 		}
 		s.rollLoot(def)
+		s.checkBoss(sp.DefID)
 		s.fireQuestEvent(quest.Event{Kind: quest.DefeatEnemy, Target: sp.DefID})
 	} else {
 		s.logf("%s has fallen…", s.Hero.Name)
 	}
 	s.curSpawn, s.Battle = -1, nil
+}
+
+// checkBoss marks a zone cleared (and the game won) when its boss falls.
+func (s *Session) checkBoss(defID string) {
+	md := s.reg.Maps[s.MapID]
+	if md.Boss == "" || defID != md.Boss || s.cleared[s.MapID] {
+		return
+	}
+	s.cleared[s.MapID] = true
+	s.logf("You have cleared %s!", md.Name)
+	if !hasLockedPortal(md) {
+		s.won = true
+		s.logf("%s falls. The realm is saved!", s.reg.Enemies[defID].Name)
+	} else {
+		s.logf("The way onward opens.")
+	}
+}
+
+func hasLockedPortal(md content.MapDef) bool {
+	for _, p := range md.Portals {
+		if p.Locked {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Session) rollLoot(def content.EnemyDef) {
+	if def.Drop != "" && s.roll() < 0.05 {
+		if it, ok := s.reg.Items[def.Drop]; ok {
+			s.Hero.AddItem(it)
+			s.logf("%s dropped %s! ('c' to equip)", def.Name, it.Name)
+		}
+	}
+	if s.roll() < 0.20 {
+		id := "hp_potion"
+		if s.roll() < 0.5 {
+			id = "mp_potion"
+		}
+		if it, ok := s.reg.Items[id]; ok {
+			s.Hero.AddItem(it)
+			s.logf("Found a %s. ('c' to use)", it.Name)
+		}
+	}
 }
 
 func (s *Session) fireQuestEvent(e quest.Event) {
@@ -384,46 +460,11 @@ func (s *Session) removeSpawn(i int) {
 func (s *Session) snapshot() *Snapshot {
 	return &Snapshot{
 		Hero: s.Hero, MapID: s.MapID, PlayerPos: s.PlayerPos,
-		Clock: s.Clock, Spawns: s.Spawns, Pending: s.pending, Quests: s.quests,
+		Clock: s.Clock, Spawns: s.Spawns, Pending: s.pending,
+		Quests: s.quests, Cleared: s.cleared, Won: s.won,
 	}
 }
 
 func (s *Session) logf(format string, a ...any) {
 	s.Log = append(s.Log, fmt.Sprintf(format, a...))
-}
-
-// UsePotion drinks the bag's potion at idx, restoring pools up to their max.
-func (s *Session) UsePotion(idx int) error {
-	inv := s.Hero.Inventory
-	if idx < 0 || idx >= len(inv) || inv[idx].Kind != item.Potion {
-		return ErrInvalidItem
-	}
-	p := inv[idx]
-	d, _ := s.Hero.EffectiveStats(s.reg.Classes)
-	s.Hero.HP = min(s.Hero.HP+p.Heal, d.MaxHP)
-	s.Hero.MP = min(s.Hero.MP+p.Mana, d.MaxMP)
-	s.Hero.Inventory = append(inv[:idx], inv[idx+1:]...)
-	s.logf("Used %s.", p.Name)
-	return nil
-}
-
-// rollLoot grants victory drops: a rare gear drop (5%) and a more common potion
-// (20%, split between health and mana).
-func (s *Session) rollLoot(def content.EnemyDef) {
-	if def.Drop != "" && s.roll() < 0.05 {
-		if it, ok := s.reg.Items[def.Drop]; ok {
-			s.Hero.AddItem(it)
-			s.logf("%s dropped %s! ('c' to equip)", def.Name, it.Name)
-		}
-	}
-	if s.roll() < 0.20 {
-		id := "hp_potion"
-		if s.roll() < 0.5 {
-			id = "mp_potion"
-		}
-		if it, ok := s.reg.Items[id]; ok {
-			s.Hero.AddItem(it)
-			s.logf("Found a %s. ('c' to use)", it.Name)
-		}
-	}
 }

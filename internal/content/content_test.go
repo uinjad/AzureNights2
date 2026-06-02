@@ -46,9 +46,6 @@ func TestLoadAssemblesRegistry(t *testing.T) {
 	if _, ok := reg.Maps["keep"]; !ok {
 		t.Error("keep map missing")
 	}
-	if len(m.Rests) == 0 {
-		t.Error("forest should have a campfire")
-	}
 	if reg.Quests == nil || len(reg.Quests.All()) < 2 {
 		t.Fatalf("expected at least two quests, got %v", reg.Quests)
 	}

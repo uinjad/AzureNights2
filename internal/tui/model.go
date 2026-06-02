@@ -19,6 +19,7 @@ const (
 	modeBattle
 	modeMenu
 	modeGameOver
+	modeVictory
 )
 
 type tickMsg time.Time
@@ -29,12 +30,13 @@ func tickEvery() tea.Cmd {
 
 // Model is the Bubble Tea adapter over a game session.
 type Model struct {
-	session        *app.Session
-	mode           mode
-	bMenu          int    // battle menu cursor
-	mMenu          int    // character menu cursor
-	nameInput      string // hero name being typed on the title screen
-	confirmingQuit bool   // showing the quit confirmation
+	session         *app.Session
+	mode            mode
+	bMenu           int    // battle menu cursor
+	mMenu           int    // character menu cursor
+	nameInput       string // hero name being typed on the title screen
+	confirmingQuit  bool   // showing the quit confirmation
+	advancePrompted bool   // whether we've shown the "advance to next map?" prompt
 }
 
 func New(session *app.Session) Model {
@@ -167,8 +169,16 @@ func (m Model) updateBattle(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			return m, nil
 		}
-		m.mode = modeFor(m.session)
-		m.bMenu = 0
+		m.mode, m.bMenu = modeFor(m.session), 0
+		if m.mode == modeExploration {
+			has := len(m.session.AdvancementView()) > 0
+			if has && !m.advancePrompted {
+				m.mode, m.mMenu, m.advancePrompted = modeMenu, 0, true
+			}
+			if !has {
+				m.advancePrompted = false
+			}
+		}
 	}
 	return m, nil
 }
@@ -193,6 +203,9 @@ func (m Model) updateMenu(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.mMenu = 0
 			} else if m.mMenu >= n {
 				m.mMenu = n - 1
+			}
+			if len(m.session.AdvancementView()) == 0 {
+				m.advancePrompted = false
 			}
 		}
 	}
@@ -232,6 +245,8 @@ func (m Model) menuActions() []menuAction {
 
 func modeFor(s *app.Session) mode {
 	switch {
+	case s.Won():
+		return modeVictory
 	case s.GameOver():
 		return modeGameOver
 	case s.InBattle():

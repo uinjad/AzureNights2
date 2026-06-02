@@ -1,14 +1,13 @@
 {
   "name": "Obsidian Keep",
   "spawn": {"x":2,"y":1},
+  "boss": "obsidian_king",
   "legend": {
     "#": {"kind":"wall","emoji":"⬛","walkable":false},
     ".": {"kind":"floor","emoji":"⬜","walkable":true},
-    "C": {"kind":"floor","emoji":"🔥","walkable":true},
     "B": {"kind":"floor","emoji":"🚪","walkable":true}
   },
-  "rows": ["##########","#B.......#","#...##...#","#...C....#","#..##....#","#........#","##########"],
-  "enemies": [{"x":6,"y":1,"id":"grunt"},{"x":7,"y":3,"id":"brute"},{"x":6,"y":5,"id":"brute"}],
-  "portals": [{"at":{"x":1,"y":1},"to_map":"cavern","to":{"x":7,"y":5}}],
-  "rests": [{"x":4,"y":3}]
+  "rows": ["##########","#B.......#","#...##...#","#........#","#..##....#","#........#","##########"],
+  "enemies": [{"x":6,"y":1,"id":"brute"},{"x":7,"y":3,"id":"brute"},{"x":6,"y":5,"id":"obsidian_king"}],
+  "portals": [{"at":{"x":1,"y":1},"to_map":"cavern","to":{"x":7,"y":5}}]
 }

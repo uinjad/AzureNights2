@@ -51,9 +51,10 @@ type EnemyPlacement struct {
 
 // Portal links a tile on this map to a position on another map.
 type Portal struct {
-	At    world.Point
-	ToMap string
-	ToPos world.Point
+	At     world.Point
+	ToMap  string
+	ToPos  world.Point
+	Locked bool
 }
 
 // MapDef is a loaded map plus spawn point, enemy placements, portals, and rests.
@@ -63,7 +64,7 @@ type MapDef struct {
 	Spawn   world.Point
 	Enemies []EnemyPlacement
 	Portals []Portal
-	Rests   []world.Point
+	Boss    string
 }
 
 // Load reads and validates every content file. Order matters: each loader's

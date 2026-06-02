@@ -195,29 +195,39 @@ func TestDefeatedEnemyRespawnsAfterDelay(t *testing.T) {
 
 func TestPortalTravelsBetweenMaps(t *testing.T) {
 	s := newTestSession(t)
-	s.PlayerPos = world.Point{X: 7, Y: 5} // just west of the forest exit portal (8,5)
+	p := lockedExit(t, s, "forest")
+	s.cleared["forest"] = true // boss down → exit unsealed
+	s.PlayerPos = world.Point{X: p.At.X - 1, Y: p.At.Y}
 	if err := s.Move(world.East); err != nil {
 		t.Fatalf("Move: %v", err)
 	}
-	if s.MapID != "coast" {
-		t.Fatalf("portal should lead to the coast, got %q", s.MapID)
+	if s.MapID != p.ToMap {
+		t.Fatalf("portal should lead to %q, got %q", p.ToMap, s.MapID)
 	}
-	if s.PlayerPos != (world.Point{X: 2, Y: 1}) {
-		t.Errorf("arrived at %+v, want (2,1)", s.PlayerPos)
+	if s.PlayerPos != p.ToPos {
+		t.Errorf("arrived at %+v, want %+v", s.PlayerPos, p.ToPos)
 	}
 }
 
-func TestCampfireRestoresPools(t *testing.T) {
+func TestBossClearUnsealsExit(t *testing.T) {
 	s := newTestSession(t)
-	s.PlayerPos = world.Point{X: 3, Y: 3} // west of the campfire at (4,3)
-	s.Hero.HP, s.Hero.MP = 1, 0
+	p := lockedExit(t, s, "forest")
 
+	s.PlayerPos = world.Point{X: p.At.X - 1, Y: p.At.Y}
 	if err := s.Move(world.East); err != nil {
 		t.Fatalf("Move: %v", err)
 	}
-	d, _ := s.Hero.EffectiveStats(s.reg.Classes)
-	if s.Hero.HP != d.MaxHP || s.Hero.MP != d.MaxMP {
-		t.Errorf("campfire should refill pools: HP %d/%d MP %d/%d", s.Hero.HP, d.MaxHP, s.Hero.MP, d.MaxMP)
+	if s.MapID != "forest" {
+		t.Fatalf("locked exit should block travel, got %q", s.MapID)
+	}
+
+	s.cleared["forest"] = true
+	s.PlayerPos = world.Point{X: p.At.X - 1, Y: p.At.Y}
+	if err := s.Move(world.East); err != nil {
+		t.Fatalf("Move: %v", err)
+	}
+	if s.MapID != p.ToMap {
+		t.Errorf("cleared exit should travel, got %q", s.MapID)
 	}
 }
 
@@ -262,4 +272,15 @@ func questDone(s *Session, id string) bool {
 		}
 	}
 	return false
+}
+
+func lockedExit(t *testing.T, s *Session, mapID string) content.Portal {
+	t.Helper()
+	for _, p := range s.reg.Maps[mapID].Portals {
+		if p.Locked {
+			return p
+		}
+	}
+	t.Fatalf("%s has no locked exit portal", mapID)
+	return content.Portal{}
 }

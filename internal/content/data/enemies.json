@@ -5,5 +5,11 @@
   {"id":"skeleton","name":"Skeleton","emoji":"💀","faction":"lawful","stats":{"max_hp":95,"p_atk":19,"p_def":11,"m_def":7,"init":4},"xp":95,"gold":35},
   {"id":"bog_lurker","name":"Bog Lurker","emoji":"🐸","faction":"illumite","stats":{"max_hp":130,"p_atk":22,"p_def":12,"m_def":14,"init":3},"xp":120,"gold":50,"drop":"chain_mail"},
   {"id":"grunt","name":"Cave Grunt","emoji":"👺","faction":"lawful","stats":{"max_hp":175,"p_atk":28,"p_def":15,"m_def":12,"init":6},"xp":160,"gold":70,"drop":"steel_sword"},
-  {"id":"brute","name":"Keep Brute","emoji":"🦍","faction":"solar","stats":{"max_hp":230,"p_atk":34,"p_def":19,"m_def":15,"init":4},"xp":240,"gold":110,"drop":"plate_armor"}
+  {"id":"brute","name":"Keep Brute","emoji":"🦍","faction":"solar","stats":{"max_hp":230,"p_atk":34,"p_def":19,"m_def":15,"init":4},"xp":240,"gold":110,"drop":"plate_armor"},
+
+  {"id":"grove_warden","name":"Grove Warden","emoji":"🐗","faction":"illumite","stats":{"max_hp":150,"p_atk":17,"p_def":9,"m_def":6,"init":5},"xp":260,"gold":90,"drop":"steel_sword"},
+  {"id":"tide_reaver","name":"Tide Reaver","emoji":"🦈","faction":"solar","stats":{"max_hp":210,"p_atk":23,"p_def":13,"m_def":9,"init":8},"xp":420,"gold":150,"drop":"chain_mail"},
+  {"id":"fen_witch","name":"Fen Witch","emoji":"🧟","faction":"illumite","stats":{"max_hp":250,"p_atk":21,"m_atk":27,"p_def":12,"m_def":18,"init":6},"xp":620,"gold":210,"drop":"chain_mail"},
+  {"id":"deep_tyrant","name":"Deep Tyrant","emoji":"🐲","faction":"lawful","stats":{"max_hp":330,"p_atk":30,"p_def":18,"m_def":14,"init":6},"xp":920,"gold":330,"drop":"plate_armor"},
+  {"id":"obsidian_king","name":"Obsidian King","emoji":"👑","faction":"solar","stats":{"max_hp":460,"p_atk":38,"p_def":22,"m_def":20,"init":9},"xp":1500,"gold":600,"drop":"plate_armor"}
 ]

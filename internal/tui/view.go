@@ -25,6 +25,8 @@ func (m Model) View() string {
 		return m.viewMenu()
 	case modeGameOver:
 		return m.viewGameOver()
+	case modeVictory:
+		return m.viewVictory()
 	default:
 		return m.viewExploration()
 	}
@@ -282,4 +284,11 @@ func bar(cur, max, width int) string {
 		filled = width
 	}
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+}
+
+func (m Model) viewVictory() string {
+	h := m.session.HeroView()
+	return alertStyle().Render(fmt.Sprintf(
+		"🏆  Victory!\n\n%s the %s has cleared the Obsidian Keep\nand saved the realm.\n\nLevel %d · %d gold\n\nPress q to quit.",
+		h.Name, h.ClassName, h.Level, h.Gold))
 }

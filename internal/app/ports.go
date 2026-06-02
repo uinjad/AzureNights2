@@ -1,7 +1,3 @@
-// Package app is the application layer: it orchestrates the domain packages into
-// playable use-cases and defines the ports (interfaces) through which outside
-// adapters — storage today, an HTTP server tomorrow — plug in. It depends inward
-// on content and the domain; nothing in the domain depends on it.
 package app
 
 import (
@@ -19,9 +15,7 @@ type Repository interface {
 	Exists() bool
 }
 
-// Snapshot is the serializable slice of game state worth persisting. The live
-// Session also holds the content registry, the active battle, and the log — none
-// of which belong in a save file.
+// Snapshot is the serializable slice of game state worth persisting.
 type Snapshot struct {
 	Hero      *character.Character `json:"hero"`
 	MapID     string               `json:"map_id"`
@@ -30,12 +24,14 @@ type Snapshot struct {
 	Spawns    []Spawn              `json:"spawns"`
 	Pending   []PendingRespawn     `json:"pending"`
 	Quests    []QuestProgress      `json:"quests"`
+	Cleared   map[string]bool      `json:"cleared"`
+	Won       bool                 `json:"won"`
 }
 
-type QuestProgress struct {
-	ID     string `json:"id"`
-	Counts []int  `json:"counts"`
-	Done   bool   `json:"done"`
+// Spawn is a living enemy still standing on the map.
+type Spawn struct {
+	Pos   world.Point `json:"pos"`
+	DefID string      `json:"def_id"`
 }
 
 // PendingRespawn is a defeated enemy queued to return at AtTick.
@@ -45,14 +41,15 @@ type PendingRespawn struct {
 	AtTick int         `json:"at_tick"`
 }
 
-// Spawn is a living enemy still standing on the map.
-type Spawn struct {
-	Pos   world.Point `json:"pos"`
-	DefID string      `json:"def_id"`
+// QuestProgress is per-quest objective counters plus completion.
+type QuestProgress struct {
+	ID     string `json:"id"`
+	Counts []int  `json:"counts"`
+	Done   bool   `json:"done"`
 }
 
 var (
 	ErrBusy        = errors.New("app: not allowed during battle")
 	ErrNotInBattle = errors.New("app: no battle in progress")
-	ErrInvalidItem = errors.New("app: invalid inventory item")
+	ErrInvalidItem = errors.New("app: invalid item")
 )

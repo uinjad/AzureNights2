@@ -19,26 +19,27 @@ type pointDTO struct {
 	Y int `json:"y"`
 }
 
-type mapDTO struct {
-	Name    string              `json:"name"`
-	Spawn   pointDTO            `json:"spawn"`
-	Legend  map[string]tileDTO  `json:"legend"`
-	Rows    []string            `json:"rows"`
-	Enemies []enemyPlacementDTO `json:"enemies"`
-	Portals []portalDTO         `json:"portals"`
-	Rests   []pointDTO          `json:"rests"`
-}
-
-type portalDTO struct {
-	At    pointDTO `json:"at"`
-	ToMap string   `json:"to_map"`
-	To    pointDTO `json:"to"`
-}
-
 type enemyPlacementDTO struct {
 	X  int    `json:"x"`
 	Y  int    `json:"y"`
 	ID string `json:"id"`
+}
+
+type portalDTO struct {
+	At     pointDTO `json:"at"`
+	ToMap  string   `json:"to_map"`
+	To     pointDTO `json:"to"`
+	Locked bool     `json:"locked"`
+}
+
+type mapDTO struct {
+	Name    string              `json:"name"`
+	Spawn   pointDTO            `json:"spawn"`
+	Boss    string              `json:"boss"`
+	Legend  map[string]tileDTO  `json:"legend"`
+	Rows    []string            `json:"rows"`
+	Enemies []enemyPlacementDTO `json:"enemies"`
+	Portals []portalDTO         `json:"portals"`
 }
 
 func loadMaps(enemies map[string]EnemyDef) (map[string]MapDef, error) {
@@ -59,26 +60,31 @@ func loadMaps(enemies map[string]EnemyDef) (map[string]MapDef, error) {
 		if err != nil {
 			return nil, fmt.Errorf("content: map %s: %w", e.Name(), err)
 		}
-		for _, p := range def.Enemies {
-			if _, ok := enemies[p.DefID]; !ok {
-				return nil, fmt.Errorf("content: map %s places unknown enemy %q", e.Name(), p.DefID)
-			}
-		}
 		out[strings.TrimSuffix(e.Name(), ".json")] = def
 	}
+
+	// Cross-map validation: every portal target, enemy id, and boss id must
+	// resolve. A typo fails at startup, not mid-game.
 	for name, def := range out {
 		for _, p := range def.Portals {
 			if _, ok := out[p.ToMap]; !ok {
 				return nil, fmt.Errorf("content: map %s has a portal to unknown map %q", name, p.ToMap)
 			}
 		}
+		for _, pl := range def.Enemies {
+			if _, ok := enemies[pl.DefID]; !ok {
+				return nil, fmt.Errorf("content: map %s places unknown enemy %q", name, pl.DefID)
+			}
+		}
+		if def.Boss != "" {
+			if _, ok := enemies[def.Boss]; !ok {
+				return nil, fmt.Errorf("content: map %s names unknown boss %q", name, def.Boss)
+			}
+		}
 	}
 	return out, nil
 }
 
-// parseMap expands a map file's legend over its ASCII rows. Kept pure (bytes in,
-// value out) so it can be tested directly with inline fixtures, including
-// malformed ones.
 func parseMap(b []byte) (MapDef, error) {
 	dto, err := unmarshal[mapDTO](b)
 	if err != nil {
@@ -118,17 +124,14 @@ func parseMap(b []byte) (MapDef, error) {
 	portals := make([]Portal, 0, len(dto.Portals))
 	for _, p := range dto.Portals {
 		portals = append(portals, Portal{
-			At:    world.Point{X: p.At.X, Y: p.At.Y},
-			ToMap: p.ToMap,
-			ToPos: world.Point{X: p.To.X, Y: p.To.Y},
+			At:     world.Point{X: p.At.X, Y: p.At.Y},
+			ToMap:  p.ToMap,
+			ToPos:  world.Point{X: p.To.X, Y: p.To.Y},
+			Locked: p.Locked,
 		})
-	}
-	rests := make([]world.Point, 0, len(dto.Rests))
-	for _, r := range dto.Rests {
-		rests = append(rests, world.Point{X: r.X, Y: r.Y})
 	}
 	return MapDef{
 		Name: dto.Name, Map: tm, Spawn: world.Point{X: dto.Spawn.X, Y: dto.Spawn.Y},
-		Enemies: placements, Portals: portals, Rests: rests,
+		Boss: dto.Boss, Enemies: placements, Portals: portals,
 	}, nil
 }

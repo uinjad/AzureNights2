@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,9 +14,17 @@ import (
 	"github.com/uinjad/AzureNights2/internal/tui"
 )
 
-// main is the composition root: it wires data, logic, persistence, and UI. The
-// session starts empty — the TUI prompts for a hero name (or loads a save).
+// version is injected at release time via -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
+	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.Parse()
+	if *showVersion {
+		fmt.Println("AzureNights", version)
+		return
+	}
+
 	reg, err := content.Load()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "loading content:", err)
