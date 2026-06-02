@@ -8,6 +8,10 @@ Lineage-2-style class tree, a faction triangle, quests, and a living day/night w
 [![Go Report Card](https://goreportcard.com/badge/github.com/uinjad/AzureNights2)](https://goreportcard.com/report/github.com/uinjad/AzureNights2)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+<p align="center">
+  <img src="docs/demo.gif" alt="AzureNights gameplay" width="640">
+</p>
+
 This is a portfolio project: the point is the **engine and its architecture**, and
 the game is the demo that exercises it. It's a moddable engine with a playable demo,
 not a content-rich game.
@@ -27,6 +31,7 @@ go run ./cmd/rpg          # play
 make test                 # full suite, race detector on
 make balance              # headless balance report through the real engine
 docker run --rm -it azurenights
+go install github.com/uinjad/AzureNights2/cmd/rpg@latest
 ```
 
 Controls: arrows/WASD to move, `enter` to act in battle, `c` for the character
