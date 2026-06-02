@@ -41,10 +41,15 @@ func TestExplorationViewRenders(t *testing.T) {
 func TestMovementUpdatesPosition(t *testing.T) {
 	m := newModel(t)
 	start := m.session.PlayerPos
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	if updated.(Model).session.PlayerPos == start {
-		t.Errorf("hero should have moved from %+v", start)
+	// Try directions until the hero actually moves — robust to map layout.
+	for _, key := range []tea.KeyType{tea.KeyRight, tea.KeyDown, tea.KeyUp, tea.KeyLeft} {
+		updated, _ := m.Update(tea.KeyMsg{Type: key})
+		if updated.(Model).session.PlayerPos != start {
+			return
+		}
+		m = updated.(Model)
 	}
+	t.Errorf("hero should have moved from %+v in some direction", start)
 }
 
 func TestQuitIssuesQuitCommand(t *testing.T) {

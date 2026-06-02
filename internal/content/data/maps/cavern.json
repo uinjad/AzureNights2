@@ -1,0 +1,30 @@
+{
+  "name": "Hollow Cavern",
+  "spawn": {"x":2,"y":1},
+  "legend": {
+    "#": {"kind":"wall","emoji":"🪨","walkable":false},
+    ".": {"kind":"floor","emoji":"◾","walkable":true},
+    "R": {"kind":"floor","emoji":"🚪","walkable":true},
+    "C": {"kind":"floor","emoji":"🏕️","walkable":true}
+  },
+  "rows": [
+    "##########",
+    "#R.......#",
+    "#...##...#",
+    "#..C.....#",
+    "#....##..#",
+    "#........#",
+    "##########"
+  ],
+  "enemies": [
+    {"x":5,"y":1,"id":"skeleton"},
+    {"x":6,"y":3,"id":"skeleton"},
+    {"x":4,"y":5,"id":"goblin"}
+  ],
+  "portals": [
+    {"at":{"x":1,"y":1},"to_map":"forest","to":{"x":7,"y":2}}
+  ],
+  "rests": [
+    {"x":3,"y":3}
+  ]
+}

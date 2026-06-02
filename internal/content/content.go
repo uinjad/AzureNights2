@@ -64,6 +64,8 @@ type MapDef struct {
 	Map     *world.TileMap
 	Spawn   world.Point
 	Enemies []EnemyPlacement
+	Portals []Portal
+	Rests   []world.Point
 }
 
 // Registry is the loaded, validated game content, ready for the app layer.
@@ -178,4 +180,11 @@ func parseTileKind(s string) (world.TileKind, error) {
 	default:
 		return 0, fmt.Errorf("content: unknown tile kind %q", s)
 	}
+}
+
+// Portal links a tile on this map to a position on another map.
+type Portal struct {
+	At    world.Point
+	ToMap string
+	ToPos world.Point
 }

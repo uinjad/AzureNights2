@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/uinjad/AzureNights2/internal/content"
+	"github.com/uinjad/AzureNights2/internal/domain/stats"
 	"github.com/uinjad/AzureNights2/internal/domain/world"
 )
 
@@ -89,7 +90,7 @@ func TestSteppingOntoEnemyStartsBattle(t *testing.T) {
 func TestWinningBattleRewardsAndClearsSpawn(t *testing.T) {
 	s := newTestSession(t)
 	beforeGold, beforeSpawns := s.Hero.Gold, len(s.Spawns)
-	goblinPos := s.Spawns[0].Pos // goblin is the weaker, winnable enemy
+	goblinPos := s.Spawns[0].Pos
 
 	approach(t, s, goblinPos)
 	for s.InBattle() {
@@ -166,5 +167,67 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 	if s2.PlayerPos != (world.Point{X: 1, Y: 1}) || s2.Hero.Gold != 99 {
 		t.Errorf("state not restored: pos %+v gold %d", s2.PlayerPos, s2.Hero.Gold)
+	}
+}
+
+func TestDefeatedEnemyRespawnsAfterDelay(t *testing.T) {
+	s := newTestSession(t)
+	goblin := s.Spawns[0].Pos
+
+	approach(t, s, goblin)
+	for s.InBattle() {
+		if err := s.Attack(0); err != nil {
+			t.Fatalf("Attack: %v", err)
+		}
+	}
+	if s.spawnAt(goblin) >= 0 {
+		t.Fatal("spawn should be cleared right after the win")
+	}
+
+	_ = s.Move(world.West) // step off the cleared tile so the respawn has room
+	for i := 0; i < respawnDelay+1; i++ {
+		s.Tick()
+	}
+	if s.spawnAt(goblin) < 0 {
+		t.Errorf("enemy should respawn at %+v after %d ticks", goblin, respawnDelay)
+	}
+}
+
+func TestPortalTravelsBetweenMaps(t *testing.T) {
+	s := newTestSession(t)
+	s.PlayerPos = world.Point{X: 7, Y: 2} // just west of the forest portal at (8,2)
+	if err := s.Move(world.East); err != nil {
+		t.Fatalf("Move: %v", err)
+	}
+	if s.MapID != "cavern" {
+		t.Fatalf("portal should lead to the cavern, got %q", s.MapID)
+	}
+	if s.PlayerPos != (world.Point{X: 2, Y: 1}) {
+		t.Errorf("arrived at %+v, want (2,1)", s.PlayerPos)
+	}
+}
+
+func TestCampfireRestoresPools(t *testing.T) {
+	s := newTestSession(t)
+	s.PlayerPos = world.Point{X: 3, Y: 3} // west of the campfire at (4,3)
+	s.Hero.HP, s.Hero.MP = 1, 0
+
+	if err := s.Move(world.East); err != nil {
+		t.Fatalf("Move: %v", err)
+	}
+	d, _ := s.Hero.EffectiveStats(s.reg.Classes)
+	if s.Hero.HP != d.MaxHP || s.Hero.MP != d.MaxMP {
+		t.Errorf("campfire should refill pools: HP %d/%d MP %d/%d", s.Hero.HP, d.MaxHP, s.Hero.MP, d.MaxMP)
+	}
+}
+
+func TestScaleForLevelGrowsWithLevel(t *testing.T) {
+	base := stats.Derived{MaxHP: 100, PAtk: 20, PDef: 10, Init: 8}
+	if got := scaleForLevel(base, 1); got != base {
+		t.Errorf("level 1 must be the baseline, got %+v", got)
+	}
+	hi := scaleForLevel(base, 9)
+	if hi.MaxHP <= base.MaxHP || hi.PAtk <= base.PAtk {
+		t.Errorf("higher level should scale enemies up: %+v", hi)
 	}
 }

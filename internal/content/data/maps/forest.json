@@ -1,22 +1,31 @@
 {
   "name": "Eldwood Forest",
-  "spawn": {"x":3,"y":3},
+  "spawn": {"x":1,"y":1},
   "legend": {
     "T": {"kind":"forest","emoji":"🌲","walkable":false},
     ".": {"kind":"grass","emoji":"🌿","walkable":true},
-    "~": {"kind":"water","emoji":"🌊","walkable":false}
+    "~": {"kind":"water","emoji":"🌊","walkable":false},
+    "P": {"kind":"floor","emoji":"🚪","walkable":true},
+    "C": {"kind":"grass","emoji":"🏕️","walkable":true}
   },
   "rows": [
-    "TTTTTTT",
-    "T.....T",
-    "T..~..T",
-    "T.....T",
-    "T..~..T",
-    "TTTTTTT"
+    "TTTTTTTTTT",
+    "T........T",
+    "T...~...PT",
+    "T...C....T",
+    "T..~.....T",
+    "T........T",
+    "TTTTTTTTTT"
   ],
-
   "enemies": [
-    {"x":2,"y":2,"id":"goblin"},
-    {"x":4,"y":4,"id":"skeleton"}
+    {"x":6,"y":1,"id":"goblin"},
+    {"x":3,"y":5,"id":"goblin"},
+    {"x":7,"y":5,"id":"skeleton"}
+  ],
+  "portals": [
+    {"at":{"x":8,"y":2},"to_map":"cavern","to":{"x":2,"y":1}}
+  ],
+  "rests": [
+    {"x":4,"y":3}
   ]
 }

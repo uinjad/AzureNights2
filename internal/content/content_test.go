@@ -31,11 +31,20 @@ func TestLoadAssemblesRegistry(t *testing.T) {
 	if !ok {
 		t.Fatal("forest map missing")
 	}
-	if m.Map.W != 7 || m.Map.H != 6 {
+	if m.Map.W != 10 || m.Map.H != 7 {
 		t.Errorf("forest size wrong: %dx%d", m.Map.W, m.Map.H)
 	}
 	if !m.Map.Walkable(m.Spawn) {
 		t.Error("spawn tile should be walkable")
+	}
+	if _, ok := reg.Maps["cavern"]; !ok {
+		t.Error("cavern map missing")
+	}
+	if len(m.Portals) == 0 || m.Portals[0].ToMap != "cavern" {
+		t.Errorf("forest should have a portal to the cavern, got %+v", m.Portals)
+	}
+	if len(m.Rests) == 0 {
+		t.Error("forest should have a campfire")
 	}
 }
 

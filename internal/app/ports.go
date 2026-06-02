@@ -28,6 +28,14 @@ type Snapshot struct {
 	PlayerPos world.Point          `json:"player_pos"`
 	Clock     world.Clock          `json:"clock"`
 	Spawns    []Spawn              `json:"spawns"`
+	Pending   []PendingRespawn     `json:"pending"`
+}
+
+// PendingRespawn is a defeated enemy queued to return at AtTick.
+type PendingRespawn struct {
+	Pos    world.Point `json:"pos"`
+	DefID  string      `json:"def_id"`
+	AtTick int         `json:"at_tick"`
 }
 
 // Spawn is a living enemy still standing on the map.

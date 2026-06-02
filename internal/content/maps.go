@@ -25,6 +25,14 @@ type mapDTO struct {
 	Legend  map[string]tileDTO  `json:"legend"`
 	Rows    []string            `json:"rows"`
 	Enemies []enemyPlacementDTO `json:"enemies"`
+	Portals []portalDTO         `json:"portals"`
+	Rests   []pointDTO          `json:"rests"`
+}
+
+type portalDTO struct {
+	At    pointDTO `json:"at"`
+	ToMap string   `json:"to_map"`
+	To    pointDTO `json:"to"`
 }
 
 type enemyPlacementDTO struct {
@@ -57,6 +65,13 @@ func loadMaps(enemies map[string]EnemyDef) (map[string]MapDef, error) {
 			}
 		}
 		out[strings.TrimSuffix(e.Name(), ".json")] = def
+	}
+	for name, def := range out {
+		for _, p := range def.Portals {
+			if _, ok := out[p.ToMap]; !ok {
+				return nil, fmt.Errorf("content: map %s has a portal to unknown map %q", name, p.ToMap)
+			}
+		}
 	}
 	return out, nil
 }
@@ -100,5 +115,20 @@ func parseMap(b []byte) (MapDef, error) {
 	for _, e := range dto.Enemies {
 		placements = append(placements, EnemyPlacement{Pos: world.Point{X: e.X, Y: e.Y}, DefID: e.ID})
 	}
-	return MapDef{Name: dto.Name, Map: tm, Spawn: world.Point{X: dto.Spawn.X, Y: dto.Spawn.Y}, Enemies: placements}, nil
+	portals := make([]Portal, 0, len(dto.Portals))
+	for _, p := range dto.Portals {
+		portals = append(portals, Portal{
+			At:    world.Point{X: p.At.X, Y: p.At.Y},
+			ToMap: p.ToMap,
+			ToPos: world.Point{X: p.To.X, Y: p.To.Y},
+		})
+	}
+	rests := make([]world.Point, 0, len(dto.Rests))
+	for _, r := range dto.Rests {
+		rests = append(rests, world.Point{X: r.X, Y: r.Y})
+	}
+	return MapDef{
+		Name: dto.Name, Map: tm, Spawn: world.Point{X: dto.Spawn.X, Y: dto.Spawn.Y},
+		Enemies: placements, Portals: portals, Rests: rests,
+	}, nil
 }
