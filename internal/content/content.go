@@ -1,8 +1,6 @@
 // Package content turns human-editable JSON into validated domain objects. All
 // data lives under content/data and is embedded with go:embed, so the game ships
-// as a single self-contained binary. The JSON uses readable string enums
-// ("magical", "weapon", "grass"); this package translates them into the domain's
-// integer enums, keeping the wire format friendly and the domain model tight.
+// as a single self-contained binary.
 package content
 
 import (
@@ -14,10 +12,61 @@ import (
 	"github.com/uinjad/AzureNights2/internal/domain/combat"
 	"github.com/uinjad/AzureNights2/internal/domain/faction"
 	"github.com/uinjad/AzureNights2/internal/domain/item"
+	"github.com/uinjad/AzureNights2/internal/domain/quest"
 	"github.com/uinjad/AzureNights2/internal/domain/stats"
 	"github.com/uinjad/AzureNights2/internal/domain/world"
 )
 
+//go:embed data
+var dataFS embed.FS
+
+// Registry is the loaded, validated game content, ready for the app layer.
+type Registry struct {
+	Factions *faction.Table
+	Classes  *class.Tree
+	Skills   map[string]combat.Skill
+	Items    map[string]item.Item
+	Enemies  map[string]EnemyDef
+	Maps     map[string]MapDef
+	Quests   *quest.Set
+}
+
+// EnemyDef is a template a battle turns into a combat.Combatant.
+type EnemyDef struct {
+	ID         string
+	Name       string
+	Emoji      string
+	Faction    faction.ID
+	Stats      stats.Derived
+	XPReward   int
+	GoldReward int
+}
+
+// EnemyPlacement positions an enemy template on a map.
+type EnemyPlacement struct {
+	Pos   world.Point
+	DefID string
+}
+
+// Portal links a tile on this map to a position on another map.
+type Portal struct {
+	At    world.Point
+	ToMap string
+	ToPos world.Point
+}
+
+// MapDef is a loaded map plus spawn point, enemy placements, portals, and rests.
+type MapDef struct {
+	Name    string
+	Map     *world.TileMap
+	Spawn   world.Point
+	Enemies []EnemyPlacement
+	Portals []Portal
+	Rests   []world.Point
+}
+
+// Load reads and validates every content file. Order matters: each loader's
+// output is used to validate the next.
 func Load() (*Registry, error) {
 	factions, err := loadFactions()
 	if err != nil {
@@ -43,50 +92,14 @@ func Load() (*Registry, error) {
 	if err != nil {
 		return nil, err
 	}
+	quests, err := loadQuests(enemies, maps)
+	if err != nil {
+		return nil, err
+	}
 	return &Registry{
 		Factions: factions, Classes: classes, Skills: skills,
-		Items: items, Enemies: enemies, Maps: maps,
+		Items: items, Enemies: enemies, Maps: maps, Quests: quests,
 	}, nil
-}
-
-//go:embed data
-var dataFS embed.FS
-
-// EnemyPlacement marks where an enemy stands on a map.
-type EnemyPlacement struct {
-	Pos   world.Point
-	DefID string
-}
-
-// MapDef now also carries enemy placements:
-type MapDef struct {
-	Name    string
-	Map     *world.TileMap
-	Spawn   world.Point
-	Enemies []EnemyPlacement
-	Portals []Portal
-	Rests   []world.Point
-}
-
-// Registry is the loaded, validated game content, ready for the app layer.
-type Registry struct {
-	Factions *faction.Table
-	Classes  *class.Tree
-	Skills   map[string]combat.Skill
-	Items    map[string]item.Item
-	Enemies  map[string]EnemyDef
-	Maps     map[string]MapDef
-}
-
-// EnemyDef is a template a battle turns into a combat.Combatant.
-type EnemyDef struct {
-	ID         string
-	Faction    faction.ID
-	Name       string
-	Emoji      string
-	Stats      stats.Derived
-	XPReward   int
-	GoldReward int
 }
 
 func readJSON[T any](name string) (T, error) {
@@ -180,11 +193,4 @@ func parseTileKind(s string) (world.TileKind, error) {
 	default:
 		return 0, fmt.Errorf("content: unknown tile kind %q", s)
 	}
-}
-
-// Portal links a tile on this map to a position on another map.
-type Portal struct {
-	At    world.Point
-	ToMap string
-	ToPos world.Point
 }

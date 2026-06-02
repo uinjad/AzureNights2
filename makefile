@@ -1,19 +1,40 @@
-.PHONY: build test lint run tidy
+BINARY := azurenights
+PKG := ./...
 
-build:
-	go build ./...
-
-test:
-	go test ./... -race -count=1
-
-lint:
-	golangci-lint run
+.PHONY: run build test vet fmt fmtcheck balance tidy clean docker-build docker-run ci
 
 run:
 	go run ./cmd/rpg
 
-tidy:
-	go mod tidy
+build:
+	go build -trimpath -ldflags="-s -w" -o bin/$(BINARY) ./cmd/rpg
+
+test:
+	go test $(PKG) -race -count=1
+
+vet:
+	go vet $(PKG)
+
+fmt:
+	gofmt -w .
+
+fmtcheck:
+	@test -z "$$(gofmt -l .)" || (echo "unformatted files:"; gofmt -l .; exit 1)
 
 balance:
 	go run ./cmd/balance
+
+tidy:
+	go mod tidy
+
+clean:
+	rm -rf bin
+
+docker-build:
+	docker build -t $(BINARY) .
+
+docker-run:
+	docker run --rm -it $(BINARY)
+
+# What CI runs.
+ci: fmtcheck vet test build

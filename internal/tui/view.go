@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/uinjad/AzureNights2/internal/domain/world"
 )
 
@@ -35,9 +36,10 @@ func (m Model) viewExploration() string {
 
 	top := lipgloss.JoinHorizontal(lipgloss.Top, mapBox, "  ", panelStyle().Render(m.renderStatus()))
 	logBox := panelStyle().Width(lipgloss.Width(top) - 2).Render(m.renderLog())
+	questBox := panelStyle().Width(lipgloss.Width(top) - 2).Render(m.renderQuests())
 	footer := dimStyle().Render(" arrows/wasd move · c character · ctrl+s save · q quit ")
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, top, logBox, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, header, top, logBox, questBox, footer)
 }
 
 func (m Model) renderMap() string {
@@ -54,12 +56,12 @@ func (m Model) renderMap() string {
 			p := world.Point{X: x, Y: y}
 			switch {
 			case p == hero:
-				b.WriteString("🧝")
+				b.WriteString(cell("🧝"))
 			case enemies[p] != "":
-				b.WriteString(enemies[p])
+				b.WriteString(cell(enemies[p]))
 			default:
 				t, _ := tm.At(p)
-				b.WriteString(t.Emoji)
+				b.WriteString(cell(t.Emoji))
 			}
 		}
 		if y < tm.H-1 {
@@ -69,6 +71,18 @@ func (m Model) renderMap() string {
 	return b.String()
 }
 
+// cell forces a glyph into exactly two terminal columns, padding narrow glyphs
+// so a misjudged emoji width can never skew the grid.
+func cell(glyph string) string {
+	switch w := runewidth.StringWidth(glyph); {
+	case w == 1:
+		return glyph + " "
+	case w == 0:
+		return glyph + "  "
+	default:
+		return glyph
+	}
+}
 func (m Model) renderStatus() string {
 	h := m.session.HeroView()
 	return strings.Join([]string{
@@ -226,4 +240,24 @@ func (m Model) viewMenu() string {
 	box := panelStyle().Render(stats + "\n\n" + strings.Join(rows, "\n"))
 	hint := dimStyle().Render(" ↑/↓ choose · enter select · c/esc close · q quit ")
 	return lipgloss.JoinVertical(lipgloss.Left, box, hint)
+}
+
+func (m Model) renderQuests() string {
+	quests := m.session.QuestLog()
+	if len(quests) == 0 {
+		return "Quests: (none)"
+	}
+	var b strings.Builder
+	b.WriteString("Quests")
+	for _, q := range quests {
+		mark := " "
+		if q.Done {
+			mark = "✓"
+		}
+		b.WriteString(fmt.Sprintf("\n [%s] %s", mark, q.Name))
+		for _, o := range q.Objectives {
+			b.WriteString(fmt.Sprintf("\n     • %s (%d/%d)", o.Desc, o.Have, o.Need))
+		}
+	}
+	return b.String()
 }

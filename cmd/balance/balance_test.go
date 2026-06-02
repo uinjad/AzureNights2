@@ -38,10 +38,11 @@ func TestDuelsAreReproducibleUnderAFixedRoll(t *testing.T) {
 func TestDuelTerminates(t *testing.T) {
 	reg, _ := content.Load()
 	leaves := leafClasses(reg.Classes)
-	// min damage is floored at 1, so every duel must end — this would hang if not.
+	a, b := leaves[0], leaves[1]
 	_ = duel(
-		classCombatant(reg, leaves[0], 10, combat.SidePlayer),
-		classCombatant(reg, leaves[1], 10, combat.SideEnemy),
+		classCombatant(reg, a, 10, combat.SidePlayer),
+		classCombatant(reg, b, 10, combat.SideEnemy),
+		classSkills(reg, a), classSkills(reg, b),
 		reg.Factions, func() float64 { return 1.0 },
 	)
 }

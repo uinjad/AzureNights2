@@ -1,4 +1,6 @@
 [
   {"id":"goblin","name":"Goblin","emoji":"👹","faction":"illumite","stats":{"max_hp":24,"p_atk":9,"p_def":4,"init":5},"xp":15,"gold":8},
-  {"id":"skeleton","name":"Skeleton","emoji":"💀","faction":"lawful","stats":{"max_hp":40,"p_atk":13,"p_def":7,"init":4},"xp":30,"gold":18}
+  {"id":"skeleton","name":"Skeleton","emoji":"💀","faction":"lawful","stats":{"max_hp":40,"p_atk":13,"p_def":7,"init":4},"xp":30,"gold":18},
+  {"id":"grunt","name":"Cave Grunt","emoji":"👺","faction":"illumite","stats":{"max_hp":185,"p_atk":33,"p_def":13,"m_def":11,"init":6},"xp":90,"gold":45},
+  {"id":"brute","name":"Cave Brute","emoji":"🦍","faction":"lawful","stats":{"max_hp":235,"p_atk":38,"p_def":17,"m_def":14,"init":5},"xp":140,"gold":70}
 ]

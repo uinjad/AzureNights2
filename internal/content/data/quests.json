@@ -1,0 +1,21 @@
+[
+  {
+    "id": "cull_the_goblins",
+    "name": "Cull the Goblins",
+    "summary": "Goblins infest Eldwood. Thin their numbers.",
+    "objectives": [
+      {"kind": "defeat", "target": "goblin", "count": 3, "desc": "Defeat 3 goblins"}
+    ],
+    "reward": {"xp": 120, "gold": 40}
+  },
+  {
+    "id": "into_the_hollow",
+    "name": "Into the Hollow",
+    "summary": "Scouts vanished near the cavern. Investigate, and put the dead to rest.",
+    "objectives": [
+      {"kind": "reach", "target": "cavern", "desc": "Enter the Hollow Cavern"},
+      {"kind": "defeat", "target": "skeleton", "count": 2, "desc": "Defeat 2 skeletons"}
+    ],
+    "reward": {"xp": 200, "gold": 80}
+  }
+]

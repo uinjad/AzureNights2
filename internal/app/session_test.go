@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/uinjad/AzureNights2/internal/content"
+	"github.com/uinjad/AzureNights2/internal/domain/quest"
 	"github.com/uinjad/AzureNights2/internal/domain/stats"
 	"github.com/uinjad/AzureNights2/internal/domain/world"
 )
@@ -230,4 +231,47 @@ func TestScaleForLevelGrowsWithLevel(t *testing.T) {
 	if hi.MaxHP <= base.MaxHP || hi.PAtk <= base.PAtk {
 		t.Errorf("higher level should scale enemies up: %+v", hi)
 	}
+}
+
+func TestQuestsTrackedFromNewGame(t *testing.T) {
+	s := newTestSession(t)
+	if len(s.quests) != len(s.reg.Quests.All()) {
+		t.Fatalf("every quest should start tracked: %d vs %d", len(s.quests), len(s.reg.Quests.All()))
+	}
+}
+
+func TestQuestCompletesAndRewards(t *testing.T) {
+	s := newTestSession(t)
+	beforeGold := s.Hero.Gold
+	for i := 0; i < 3; i++ {
+		s.fireQuestEvent(quest.Event{Kind: quest.DefeatEnemy, Target: "goblin"})
+	}
+	if !questDone(s, "cull_the_goblins") {
+		t.Error("three goblin kills should complete the cull")
+	}
+	if s.Hero.Gold <= beforeGold {
+		t.Errorf("completing a quest should pay out: %d -> %d", beforeGold, s.Hero.Gold)
+	}
+}
+
+func TestMultiStepQuestNeedsBothObjectives(t *testing.T) {
+	s := newTestSession(t)
+	s.fireQuestEvent(quest.Event{Kind: quest.ReachMap, Target: "cavern"})
+	if questDone(s, "into_the_hollow") {
+		t.Error("reaching the cavern alone should not finish the quest")
+	}
+	s.fireQuestEvent(quest.Event{Kind: quest.DefeatEnemy, Target: "skeleton"})
+	s.fireQuestEvent(quest.Event{Kind: quest.DefeatEnemy, Target: "skeleton"})
+	if !questDone(s, "into_the_hollow") {
+		t.Error("cavern + two skeletons should finish the quest")
+	}
+}
+
+func questDone(s *Session, id string) bool {
+	for _, qp := range s.quests {
+		if qp.ID == id {
+			return qp.Done
+		}
+	}
+	return false
 }

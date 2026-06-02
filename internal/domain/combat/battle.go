@@ -119,7 +119,25 @@ func (b *Battle) Step() error {
 	return nil
 }
 
+// BasicAI just attacks the player.
 func BasicAI(b *Battle, enemy *Combatant) { b.resolveAttack(enemy, b.Player()) }
+
+// SkillAI returns an enemy strategy that casts the first usable skill from the
+// list, falling back to a basic attack. With no skills it behaves like BasicAI.
+// It lets the balance harness — and, later, skill-casting enemies — fight with
+// their full kit.
+func SkillAI(skills []Skill) func(b *Battle, enemy *Combatant) {
+	return func(b *Battle, enemy *Combatant) {
+		target := b.Player()
+		for _, s := range skills {
+			if enemy.CanUse(s) {
+				b.resolveSkill(enemy, s, target)
+				return
+			}
+		}
+		b.resolveAttack(enemy, target)
+	}
+}
 
 func (b *Battle) enemyAt(idx int) (*Combatant, error) {
 	enemies := b.Enemies()

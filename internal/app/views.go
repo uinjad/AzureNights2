@@ -169,3 +169,37 @@ func slotName(sl item.Slot) string {
 	}
 	return "Armor"
 }
+
+// QuestObjectiveView is one objective's text and progress for the UI.
+type QuestObjectiveView struct {
+	Desc       string
+	Have, Need int
+	Done       bool
+}
+
+// QuestView is a quest as the journal renders it.
+type QuestView struct {
+	Name       string
+	Summary    string
+	Objectives []QuestObjectiveView
+	Done       bool
+}
+
+// QuestLog builds the journal read model from live progress.
+func (s *Session) QuestLog() []QuestView {
+	out := make([]QuestView, 0, len(s.quests))
+	for _, qp := range s.quests {
+		def, ok := s.reg.Quests.Get(qp.ID)
+		if !ok {
+			continue
+		}
+		qv := QuestView{Name: def.Name, Summary: def.Summary, Done: qp.Done}
+		for i, o := range def.Objectives {
+			qv.Objectives = append(qv.Objectives, QuestObjectiveView{
+				Desc: o.Desc, Have: qp.Counts[i], Need: o.Required(), Done: qp.Counts[i] >= o.Required(),
+			})
+		}
+		out = append(out, qv)
+	}
+	return out
+}

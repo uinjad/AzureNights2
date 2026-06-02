@@ -8,10 +8,12 @@ import (
 	"github.com/uinjad/AzureNights2/internal/domain/character"
 	"github.com/uinjad/AzureNights2/internal/domain/class"
 	"github.com/uinjad/AzureNights2/internal/domain/combat"
+	"github.com/uinjad/AzureNights2/internal/domain/quest"
 	"github.com/uinjad/AzureNights2/internal/domain/stats"
 	"github.com/uinjad/AzureNights2/internal/domain/world"
 )
 
+// respawnDelay is how many world ticks a defeated enemy stays gone.
 const respawnDelay = 20
 
 // Session is the live game. The UI drives it through these use-cases and never
@@ -32,13 +34,14 @@ type Session struct {
 	Log      []string
 
 	pending []PendingRespawn
+	quests  []QuestProgress
 }
 
 // Option configures a Session at construction.
 type Option func(*Session)
 
-// WithRoll injects the randomness source for the world clock, so tests can make
-// the weather deterministic.
+// WithRoll injects the randomness source (world clock + combat), so tests can be
+// deterministic.
 func WithRoll(roll func() float64) Option {
 	return func(s *Session) { s.roll = roll }
 }
@@ -52,6 +55,7 @@ func New(reg *content.Registry, repo Repository, opts ...Option) *Session {
 	return s
 }
 
+// NewGame starts a fresh playthrough on the opening map.
 func (s *Session) NewGame(heroName string) error {
 	hero, err := character.New(heroName, s.reg.Classes)
 	if err != nil {
@@ -69,22 +73,15 @@ func (s *Session) NewGame(heroName string) error {
 	s.Hero = hero
 	s.Clock = world.Clock{}
 	s.Battle, s.curSpawn = nil, -1
+
+	s.quests = s.quests[:0]
+	for _, q := range s.reg.Quests.All() {
+		s.quests = append(s.quests, QuestProgress{ID: q.ID, Counts: make([]int, len(q.Objectives))})
+	}
+
 	s.enterMap("forest", md.Spawn)
 	s.logf("%s sets out into %s.", hero.Name, md.Name)
 	return nil
-}
-
-// enterMap places the hero on a map and resets that map's enemies from its
-// definition. Spawn state is local to the current map, so leaving and returning
-// gives a clean board — simple, and enough for the MVP.
-func (s *Session) enterMap(mapID string, at world.Point) {
-	md := s.reg.Maps[mapID]
-	s.MapID, s.PlayerPos = mapID, at
-	s.Spawns = s.Spawns[:0]
-	for _, e := range md.Enemies {
-		s.Spawns = append(s.Spawns, Spawn{Pos: e.Pos, DefID: e.DefID})
-	}
-	s.pending = s.pending[:0]
 }
 
 // InBattle reports whether a fight is in progress.
@@ -100,6 +97,8 @@ func (s *Session) Map() *world.TileMap { return s.currentMap() }
 
 func (s *Session) currentMap() *world.TileMap { return s.reg.Maps[s.MapID].Map }
 
+// Move walks one tile. Onto a portal it travels maps; onto an enemy it starts a
+// battle; onto a campfire it restores pools; otherwise it just steps.
 func (s *Session) Move(dir world.Direction) error {
 	if s.InBattle() {
 		return ErrBusy
@@ -148,6 +147,7 @@ func (s *Session) restHero() {
 	s.logf("You rest at the campfire — HP and MP restored.")
 }
 
+// Tick advances the living world by one step. The clock is frozen during battle.
 func (s *Session) Tick() {
 	if s.InBattle() {
 		return
@@ -156,22 +156,6 @@ func (s *Session) Tick() {
 		s.logf("%s", note)
 	}
 	s.processRespawns()
-}
-
-// processRespawns returns queued enemies to the map once their timer is up and
-// their tile is clear (and the hero isn't standing on it).
-func (s *Session) processRespawns() {
-	keep := s.pending[:0]
-	for _, pr := range s.pending {
-		ready := s.Clock.Tick >= pr.AtTick && s.spawnAt(pr.Pos) < 0 && s.PlayerPos != pr.Pos
-		if ready {
-			s.Spawns = append(s.Spawns, Spawn{Pos: pr.Pos, DefID: pr.DefID})
-			s.logf("A %s prowls back into view.", s.reg.Enemies[pr.DefID].Name)
-		} else {
-			keep = append(keep, pr)
-		}
-	}
-	s.pending = keep
 }
 
 // Attack performs the hero's basic attack on the chosen enemy.
@@ -220,6 +204,10 @@ func (s *Session) AdvanceClass(to class.ID) error {
 	return nil
 }
 
+// AdvanceTo advances the hero onto the named class branch (string convenience
+// for the TUI, which avoids importing the class package).
+func (s *Session) AdvanceTo(id string) error { return s.AdvanceClass(class.ID(id)) }
+
 // Equip puts an item from the content registry onto the hero.
 func (s *Session) Equip(itemID string) error {
 	it, ok := s.reg.Items[itemID]
@@ -232,79 +220,6 @@ func (s *Session) Equip(itemID string) error {
 	s.logf("Equipped %s.", it.Name)
 	return nil
 }
-
-// Save persists the current game through the repository port.
-func (s *Session) Save() error { return s.repo.Save(s.snapshot()) }
-
-func (s *Session) resolveBattleProgress() {
-	for s.Battle.Phase == combat.Ongoing && !s.Battle.IsPlayerTurn() {
-		_ = s.Battle.Step()
-	}
-	if s.Battle.Phase != combat.Ongoing {
-		s.settleBattle()
-	}
-}
-
-func (s *Session) settleBattle() {
-	pc := s.Battle.Player()
-	s.Hero.HP, s.Hero.MP = pc.HP, pc.MP // sync exploration pools back
-
-	if s.Battle.Phase == combat.PlayerWon {
-		sp := s.Spawns[s.curSpawn]
-		def := s.reg.Enemies[sp.DefID]
-		s.Hero.Gold += def.GoldReward
-		levels, _ := s.Hero.AddXP(s.reg.Classes, def.XPReward)
-		s.PlayerPos = sp.Pos
-		s.removeSpawn(s.curSpawn)
-		s.pending = append(s.pending, PendingRespawn{Pos: sp.Pos, DefID: sp.DefID, AtTick: s.Clock.Tick + respawnDelay})
-		s.logf("You defeat %s! +%d XP, +%d gold.", def.Name, def.XPReward, def.GoldReward)
-		if levels > 0 {
-			s.logf("You reach level %d!", s.Hero.Level)
-		}
-	} else {
-		s.logf("%s has fallen…", s.Hero.Name)
-	}
-	s.curSpawn, s.Battle = -1, nil
-}
-
-func (s *Session) spawnAt(p world.Point) int {
-	for i, sp := range s.Spawns {
-		if sp.Pos == p {
-			return i
-		}
-	}
-	return -1
-}
-
-func (s *Session) removeSpawn(i int) {
-	s.Spawns = append(s.Spawns[:i], s.Spawns[i+1:]...)
-}
-
-func (s *Session) snapshot() *Snapshot {
-	return &Snapshot{
-		Hero: s.Hero, MapID: s.MapID, PlayerPos: s.PlayerPos,
-		Clock: s.Clock, Spawns: s.Spawns, Pending: s.pending,
-	}
-}
-
-func (s *Session) LoadGame() error {
-	snap, err := s.repo.Load()
-	if err != nil {
-		return err
-	}
-	s.Hero, s.MapID, s.PlayerPos = snap.Hero, snap.MapID, snap.PlayerPos
-	s.Clock, s.Spawns, s.pending = snap.Clock, snap.Spawns, snap.Pending
-	s.Battle, s.curSpawn = nil, -1
-	s.logf("Game loaded.")
-	return nil
-}
-
-func (s *Session) logf(format string, a ...any) {
-	s.Log = append(s.Log, fmt.Sprintf(format, a...))
-}
-
-// AdvanceTo advances the hero onto the named class branch.
-func (s *Session) AdvanceTo(id string) error { return s.AdvanceClass(class.ID(id)) }
 
 // EquipFromInventory equips the bag item at idx, returning whatever occupied
 // that slot back to the bag.
@@ -325,6 +240,38 @@ func (s *Session) EquipFromInventory(idx int) error {
 	return nil
 }
 
+// Save persists the current game through the repository port.
+func (s *Session) Save() error { return s.repo.Save(s.snapshot()) }
+
+// LoadGame restores a saved game through the repository port.
+func (s *Session) LoadGame() error {
+	snap, err := s.repo.Load()
+	if err != nil {
+		return err
+	}
+	s.Hero, s.MapID, s.PlayerPos = snap.Hero, snap.MapID, snap.PlayerPos
+	s.Clock, s.Spawns, s.pending = snap.Clock, snap.Spawns, snap.Pending
+	s.quests = snap.Quests
+	s.Battle, s.curSpawn = nil, -1
+	s.logf("Game loaded.")
+	return nil
+}
+
+// --- internals ---
+
+// enterMap places the hero on a map and resets that map's enemies. Spawn state
+// is local to the current map; entering also fires a "reach" quest event.
+func (s *Session) enterMap(mapID string, at world.Point) {
+	md := s.reg.Maps[mapID]
+	s.MapID, s.PlayerPos = mapID, at
+	s.Spawns = s.Spawns[:0]
+	for _, e := range md.Enemies {
+		s.Spawns = append(s.Spawns, Spawn{Pos: e.Pos, DefID: e.DefID})
+	}
+	s.pending = s.pending[:0]
+	s.fireQuestEvent(quest.Event{Kind: quest.ReachMap, Target: mapID})
+}
+
 func (s *Session) startBattle(idx int) {
 	def := s.reg.Enemies[s.Spawns[idx].DefID]
 	s.Battle = combat.NewBattle(
@@ -343,7 +290,7 @@ func (s *Session) buildHeroCombatant() *combat.Combatant {
 	cls, _ := s.reg.Classes.Get(s.Hero.ClassID)
 	c := combat.NewCombatant(s.Hero.Name, "🧝", combat.SidePlayer, d)
 	c.Faction = cls.Faction
-	c.HP, c.MP = s.Hero.HP, s.Hero.MP
+	c.HP, c.MP = s.Hero.HP, s.Hero.MP // carry exploration pools into battle
 	return c
 }
 
@@ -372,4 +319,101 @@ func scaleForLevel(d stats.Derived, level int) stats.Derived {
 	d.MDef += d.MDef * steps / 12
 	d.Init += d.Init * steps / 20
 	return d
+}
+
+func (s *Session) resolveBattleProgress() {
+	for s.Battle.Phase == combat.Ongoing && !s.Battle.IsPlayerTurn() {
+		_ = s.Battle.Step()
+	}
+	if s.Battle.Phase != combat.Ongoing {
+		s.settleBattle()
+	}
+}
+
+func (s *Session) settleBattle() {
+	pc := s.Battle.Player()
+	s.Hero.HP, s.Hero.MP = pc.HP, pc.MP // sync exploration pools back
+
+	if s.Battle.Phase == combat.PlayerWon {
+		sp := s.Spawns[s.curSpawn]
+		def := s.reg.Enemies[sp.DefID]
+		s.Hero.Gold += def.GoldReward
+		levels, _ := s.Hero.AddXP(s.reg.Classes, def.XPReward)
+		s.PlayerPos = sp.Pos
+		s.removeSpawn(s.curSpawn)
+		s.pending = append(s.pending, PendingRespawn{Pos: sp.Pos, DefID: sp.DefID, AtTick: s.Clock.Tick + respawnDelay})
+		s.logf("You defeat %s! +%d XP, +%d gold.", def.Name, def.XPReward, def.GoldReward)
+		if levels > 0 {
+			s.logf("You reach level %d!", s.Hero.Level)
+		}
+		s.fireQuestEvent(quest.Event{Kind: quest.DefeatEnemy, Target: sp.DefID})
+	} else {
+		s.logf("%s has fallen…", s.Hero.Name)
+	}
+	s.curSpawn, s.Battle = -1, nil
+}
+
+// fireQuestEvent advances every active quest against a world event, paying out
+// and logging the moment one completes.
+func (s *Session) fireQuestEvent(e quest.Event) {
+	for i := range s.quests {
+		qp := &s.quests[i]
+		if qp.Done {
+			continue
+		}
+		def, ok := s.reg.Quests.Get(qp.ID)
+		if !ok {
+			continue
+		}
+		def.Apply(qp.Counts, e)
+		if def.Complete(qp.Counts) {
+			qp.Done = true
+			s.Hero.Gold += def.Reward.Gold
+			levels, _ := s.Hero.AddXP(s.reg.Classes, def.Reward.XP)
+			s.logf("Quest complete: %s! +%d XP, +%d gold.", def.Name, def.Reward.XP, def.Reward.Gold)
+			if levels > 0 {
+				s.logf("You reach level %d!", s.Hero.Level)
+			}
+		}
+	}
+}
+
+// processRespawns returns queued enemies to the map once their timer is up and
+// their tile is clear (and the hero isn't standing on it).
+func (s *Session) processRespawns() {
+	keep := s.pending[:0]
+	for _, pr := range s.pending {
+		ready := s.Clock.Tick >= pr.AtTick && s.spawnAt(pr.Pos) < 0 && s.PlayerPos != pr.Pos
+		if ready {
+			s.Spawns = append(s.Spawns, Spawn{Pos: pr.Pos, DefID: pr.DefID})
+			s.logf("A %s prowls back into view.", s.reg.Enemies[pr.DefID].Name)
+		} else {
+			keep = append(keep, pr)
+		}
+	}
+	s.pending = keep
+}
+
+func (s *Session) spawnAt(p world.Point) int {
+	for i, sp := range s.Spawns {
+		if sp.Pos == p {
+			return i
+		}
+	}
+	return -1
+}
+
+func (s *Session) removeSpawn(i int) {
+	s.Spawns = append(s.Spawns[:i], s.Spawns[i+1:]...)
+}
+
+func (s *Session) snapshot() *Snapshot {
+	return &Snapshot{
+		Hero: s.Hero, MapID: s.MapID, PlayerPos: s.PlayerPos,
+		Clock: s.Clock, Spawns: s.Spawns, Pending: s.pending, Quests: s.quests,
+	}
+}
+
+func (s *Session) logf(format string, a ...any) {
+	s.Log = append(s.Log, fmt.Sprintf(format, a...))
 }

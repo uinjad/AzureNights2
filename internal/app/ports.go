@@ -29,6 +29,13 @@ type Snapshot struct {
 	Clock     world.Clock          `json:"clock"`
 	Spawns    []Spawn              `json:"spawns"`
 	Pending   []PendingRespawn     `json:"pending"`
+	Quests    []QuestProgress      `json:"quests"`
+}
+
+type QuestProgress struct {
+	ID     string `json:"id"`
+	Counts []int  `json:"counts"`
+	Done   bool   `json:"done"`
 }
 
 // PendingRespawn is a defeated enemy queued to return at AtTick.

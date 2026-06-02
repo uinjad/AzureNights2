@@ -46,6 +46,12 @@ func TestLoadAssemblesRegistry(t *testing.T) {
 	if len(m.Rests) == 0 {
 		t.Error("forest should have a campfire")
 	}
+	if reg.Quests == nil || len(reg.Quests.All()) < 2 {
+		t.Fatalf("expected at least two quests, got %v", reg.Quests)
+	}
+	if q, ok := reg.Quests.Get("cull_the_goblins"); !ok || q.Objectives[0].Target != "goblin" {
+		t.Errorf("cull quest should target goblins, got %+v", q)
+	}
 }
 
 func TestEnumParsersRejectUnknown(t *testing.T) {

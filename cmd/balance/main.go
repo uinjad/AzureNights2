@@ -1,14 +1,11 @@
 // Command balance is a headless tuning harness. It loads the real game content
 // and runs thousands of duels through the actual combat engine, then prints
 // win-rate tables: class-vs-class, class-vs-enemy, and the isolated faction
-// triangle. Because it consumes the same JSON and the same engine the game does,
-// re-balancing a fork is a feedback loop, not guesswork: edit classes.json or
-// factions.json, run `make balance`, read the matrix.
+// triangle. Both sides cast their best usable skill each turn (falling back to a
+// basic attack), so a Mage is judged by its Arcane Bolt, not its fists.
 //
-// To keep matchups fair, every duel is fought with basic attacks only (no skill
-// AI), so the tables measure base-stat and faction balance. The faction triangle
-// additionally swaps who strikes first across halves, cancelling initiative so
-// only the multiplier shows through.
+// The faction triangle uses neutral, identical stat blocks and swaps who strikes
+// first across halves, cancelling initiative so only the multiplier shows.
 package main
 
 import (
@@ -49,8 +46,6 @@ func main() {
 	printFactionTriangle(reg, *level, *n, roll)
 }
 
-// leafClasses returns the terminal classes — the playable archetypes. A class is
-// terminal when nothing advances from it.
 func leafClasses(tree *class.Tree) []class.Class {
 	var out []class.Class
 	for _, c := range tree.All() {
@@ -74,14 +69,43 @@ func enemyCombatant(e content.EnemyDef, side combat.Side) *combat.Combatant {
 	return cb
 }
 
-// duel runs one fight to the end with both sides auto-attacking. It reports
-// whether the player-side combatant won.
-func duel(player, enemy *combat.Combatant, factions *faction.Table, roll func() float64) bool {
+// classSkills gathers a class's skills along its advancement path.
+func classSkills(reg *content.Registry, c class.Class) []combat.Skill {
+	chain, ok := reg.Classes.Path(c.ID)
+	if !ok {
+		return nil
+	}
+	var out []combat.Skill
+	for _, node := range chain {
+		for _, id := range node.Skills {
+			if sk, ok := reg.Skills[id]; ok {
+				out = append(out, sk)
+			}
+		}
+	}
+	return out
+}
+
+// duel runs one fight to the end. The player casts its best usable skill each
+// turn; the enemy runs SkillAI. Reports whether the player-side combatant won.
+func duel(player, enemy *combat.Combatant, playerSkills, enemySkills []combat.Skill, factions *faction.Table, roll func() float64) bool {
 	b := combat.NewBattle(player, []*combat.Combatant{enemy},
 		combat.WithRNG(roll), combat.WithFactions(factions))
+	b.AI = combat.SkillAI(enemySkills)
 	for b.Phase == combat.Ongoing {
 		if b.IsPlayerTurn() {
-			_ = b.PlayerAttack(0)
+			acted := false
+			for _, sk := range playerSkills {
+				if b.Player().CanUse(sk) {
+					if b.PlayerUseSkill(sk, 0) == nil {
+						acted = true
+						break
+					}
+				}
+			}
+			if !acted {
+				_ = b.PlayerAttack(0)
+			}
 		} else {
 			_ = b.Step()
 		}
@@ -89,12 +113,12 @@ func duel(player, enemy *combat.Combatant, factions *faction.Table, roll func() 
 	return b.Phase == combat.PlayerWon
 }
 
-// classWinRate is the row class's win % as the acting side against the column.
 func classWinRate(reg *content.Registry, a, b class.Class, level, n int, roll func() float64) float64 {
+	as, bs := classSkills(reg, a), classSkills(reg, b)
 	wins := 0
 	for i := 0; i < n; i++ {
 		if duel(classCombatant(reg, a, level, combat.SidePlayer),
-			classCombatant(reg, b, level, combat.SideEnemy), reg.Factions, roll) {
+			classCombatant(reg, b, level, combat.SideEnemy), as, bs, reg.Factions, roll) {
 			wins++
 		}
 	}
@@ -102,7 +126,7 @@ func classWinRate(reg *content.Registry, a, b class.Class, level, n int, roll fu
 }
 
 func printClassMatrix(reg *content.Registry, leaves []class.Class, level, n int, roll func() float64) {
-	fmt.Println("Class vs class — row's win % vs column (row acts on initiative ties):")
+	fmt.Println("Class vs class — row's win % vs column (both cast skills):")
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprint(w, " ")
 	for _, c := range leaves {
@@ -124,7 +148,7 @@ func printClassMatrix(reg *content.Registry, leaves []class.Class, level, n int,
 }
 
 func printMobTable(reg *content.Registry, leaves []class.Class, level, n int, roll func() float64) {
-	fmt.Println("Class vs enemy — win %:")
+	fmt.Println("Class vs enemy — win % (raw enemy tier, no level scaling):")
 	enemies := sortedEnemies(reg)
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprint(w, " ")
@@ -133,12 +157,13 @@ func printMobTable(reg *content.Registry, leaves []class.Class, level, n int, ro
 	}
 	fmt.Fprintln(w)
 	for _, a := range leaves {
+		as := classSkills(reg, a)
 		fmt.Fprintf(w, "%s", short(a.Name))
 		for _, e := range enemies {
 			wins := 0
 			for i := 0; i < n; i++ {
 				if duel(classCombatant(reg, a, level, combat.SidePlayer),
-					enemyCombatant(e, combat.SideEnemy), reg.Factions, roll) {
+					enemyCombatant(e, combat.SideEnemy), as, nil, reg.Factions, roll) {
 					wins++
 				}
 			}
@@ -149,9 +174,6 @@ func printMobTable(reg *content.Registry, leaves []class.Class, level, n int, ro
 	w.Flush()
 }
 
-// printFactionTriangle isolates the faction multiplier: identical stat blocks,
-// only allegiance differs, and each pair is fought twice with the strike order
-// swapped so initiative cancels out.
 func printFactionTriangle(reg *content.Registry, level, n int, roll func() float64) {
 	fmt.Println("Faction triangle — identical stats, allegiance only (attacker win %):")
 	base := stats.Derive(stats.Primary{STR: 8, DEX: 8, CON: 8, INT: 8, WIT: 8, MEN: 8}, level)
@@ -165,15 +187,14 @@ func printFactionTriangle(reg *content.Registry, level, n int, roll func() float
 			ap.Faction = p.a
 			be := combat.NewCombatant("b", "", combat.SideEnemy, base)
 			be.Faction = p.b
-			if duel(ap, be, reg.Factions, roll) {
+			if duel(ap, be, nil, nil, reg.Factions, roll) {
 				wins++
 			}
-			// swap strike order: b acts first; a (now the enemy) wins if b loses.
 			bp := combat.NewCombatant("b", "", combat.SidePlayer, base)
 			bp.Faction = p.b
 			ae := combat.NewCombatant("a", "", combat.SideEnemy, base)
 			ae.Faction = p.a
-			if !duel(bp, ae, reg.Factions, roll) {
+			if !duel(bp, ae, nil, nil, reg.Factions, roll) {
 				wins++
 			}
 		}
@@ -193,7 +214,6 @@ func sortedEnemies(reg *content.Registry) []content.EnemyDef {
 
 func pct(part, total int) float64 { return float64(part) / float64(total) * 100 }
 
-// short abbreviates "Solar Warrior" -> "Sol-War" to keep the matrix narrow.
 func short(name string) string {
 	parts := strings.Fields(name)
 	if len(parts) == 2 && len(parts[0]) >= 3 && len(parts[1]) >= 3 {
