@@ -6,7 +6,6 @@ import (
 
 	"github.com/uinjad/AzureNights2/internal/content"
 	"github.com/uinjad/AzureNights2/internal/domain/quest"
-	"github.com/uinjad/AzureNights2/internal/domain/stats"
 	"github.com/uinjad/AzureNights2/internal/domain/world"
 )
 
@@ -196,12 +195,12 @@ func TestDefeatedEnemyRespawnsAfterDelay(t *testing.T) {
 
 func TestPortalTravelsBetweenMaps(t *testing.T) {
 	s := newTestSession(t)
-	s.PlayerPos = world.Point{X: 7, Y: 2} // just west of the forest portal at (8,2)
+	s.PlayerPos = world.Point{X: 7, Y: 5} // just west of the forest exit portal (8,5)
 	if err := s.Move(world.East); err != nil {
 		t.Fatalf("Move: %v", err)
 	}
-	if s.MapID != "cavern" {
-		t.Fatalf("portal should lead to the cavern, got %q", s.MapID)
+	if s.MapID != "coast" {
+		t.Fatalf("portal should lead to the coast, got %q", s.MapID)
 	}
 	if s.PlayerPos != (world.Point{X: 2, Y: 1}) {
 		t.Errorf("arrived at %+v, want (2,1)", s.PlayerPos)
@@ -219,17 +218,6 @@ func TestCampfireRestoresPools(t *testing.T) {
 	d, _ := s.Hero.EffectiveStats(s.reg.Classes)
 	if s.Hero.HP != d.MaxHP || s.Hero.MP != d.MaxMP {
 		t.Errorf("campfire should refill pools: HP %d/%d MP %d/%d", s.Hero.HP, d.MaxHP, s.Hero.MP, d.MaxMP)
-	}
-}
-
-func TestScaleForLevelGrowsWithLevel(t *testing.T) {
-	base := stats.Derived{MaxHP: 100, PAtk: 20, PDef: 10, Init: 8}
-	if got := scaleForLevel(base, 1); got != base {
-		t.Errorf("level 1 must be the baseline, got %+v", got)
-	}
-	hi := scaleForLevel(base, 9)
-	if hi.MaxHP <= base.MaxHP || hi.PAtk <= base.PAtk {
-		t.Errorf("higher level should scale enemies up: %+v", hi)
 	}
 }
 

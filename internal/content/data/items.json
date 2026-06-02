@@ -1,4 +1,9 @@
 [
-  {"id":"iron_sword","name":"Iron Sword","emoji":"🗡️","slot":"weapon","bonus":{"p_atk":10}},
-  {"id":"padded_robe","name":"Padded Robe","emoji":"🧥","slot":"armor","bonus":{"p_def":6,"max_hp":20}}
+  {"id":"iron_sword","name":"Iron Sword","emoji":"🗡","kind":"gear","slot":"weapon","bonus":{"p_atk":10}},
+  {"id":"padded_robe","name":"Padded Robe","emoji":"🧥","kind":"gear","slot":"armor","bonus":{"p_def":6,"max_hp":20}},
+  {"id":"steel_sword","name":"Steel Sword","emoji":"⚔","kind":"gear","slot":"weapon","bonus":{"p_atk":20}},
+  {"id":"chain_mail","name":"Chain Mail","emoji":"🛡","kind":"gear","slot":"armor","bonus":{"p_def":12,"max_hp":45}},
+  {"id":"plate_armor","name":"Plate Armor","emoji":"🪖","kind":"gear","slot":"armor","bonus":{"p_def":18,"max_hp":80}},
+  {"id":"hp_potion","name":"Health Potion","emoji":"❤","kind":"potion","heal":60},
+  {"id":"mp_potion","name":"Mana Potion","emoji":"💙","kind":"potion","mana":40}
 ]

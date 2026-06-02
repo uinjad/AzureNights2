@@ -5,6 +5,7 @@ import (
 
 	"github.com/uinjad/AzureNights2/internal/domain/class"
 	"github.com/uinjad/AzureNights2/internal/domain/combat"
+	"github.com/uinjad/AzureNights2/internal/domain/faction"
 	"github.com/uinjad/AzureNights2/internal/domain/item"
 )
 
@@ -48,6 +49,7 @@ func loadClasses(skills map[string]combat.Skill) (*class.Tree, error) {
 		out = append(out, class.Class{
 			ID:       class.ID(c.ID),
 			Name:     c.Name,
+			Faction:  faction.ID(c.Faction),
 			Bonus:    c.Bonus.toDomain(),
 			Skills:   c.Skills,
 			Advances: adv,
@@ -93,8 +95,11 @@ type itemDTO struct {
 	ID    string     `json:"id"`
 	Name  string     `json:"name"`
 	Emoji string     `json:"emoji"`
+	Kind  string     `json:"kind"`
 	Slot  string     `json:"slot"`
 	Bonus derivedDTO `json:"bonus"`
+	Heal  int        `json:"heal"`
+	Mana  int        `json:"mana"`
 }
 
 func loadItems() (map[string]item.Item, error) {
@@ -104,11 +109,22 @@ func loadItems() (map[string]item.Item, error) {
 	}
 	out := make(map[string]item.Item, len(list))
 	for _, it := range list {
-		slot, err := parseSlot(it.Slot)
-		if err != nil {
-			return nil, fmt.Errorf("content: item %q: %w", it.ID, err)
+		kind := item.Gear
+		if it.Kind == "potion" {
+			kind = item.Potion
 		}
-		out[it.ID] = item.Item{ID: it.ID, Name: it.Name, Emoji: it.Emoji, Slot: slot, Bonus: it.Bonus.toDomain()}
+		var slot item.Slot
+		if kind == item.Gear {
+			s, err := parseSlot(it.Slot)
+			if err != nil {
+				return nil, fmt.Errorf("content: item %q: %w", it.ID, err)
+			}
+			slot = s
+		}
+		out[it.ID] = item.Item{
+			ID: it.ID, Name: it.Name, Emoji: it.Emoji, Kind: kind,
+			Slot: slot, Bonus: it.Bonus.toDomain(), Heal: it.Heal, Mana: it.Mana,
+		}
 	}
 	return out, nil
 }
@@ -116,13 +132,14 @@ func loadItems() (map[string]item.Item, error) {
 // --- enemies ---
 
 type enemyDTO struct {
-	ID      string     `json:"id"`
-	Name    string     `json:"name"`
-	Faction string     `json:"faction"`
-	Emoji   string     `json:"emoji"`
-	Stats   derivedDTO `json:"stats"`
-	XP      int        `json:"xp"`
-	Gold    int        `json:"gold"`
+	ID    string     `json:"id"`
+	Name  string     `json:"name"`
+	Emoji string     `json:"emoji"`
+	Fact  string     `json:"faction"`
+	Stats derivedDTO `json:"stats"`
+	XP    int        `json:"xp"`
+	Gold  int        `json:"gold"`
+	Drop  string     `json:"drop"`
 }
 
 func loadEnemies() (map[string]EnemyDef, error) {
@@ -132,7 +149,10 @@ func loadEnemies() (map[string]EnemyDef, error) {
 	}
 	out := make(map[string]EnemyDef, len(list))
 	for _, e := range list {
-		out[e.ID] = EnemyDef{ID: e.ID, Name: e.Name, Emoji: e.Emoji, Stats: e.Stats.toDomain(), XPReward: e.XP, GoldReward: e.Gold}
+		out[e.ID] = EnemyDef{
+			ID: e.ID, Name: e.Name, Emoji: e.Emoji, Faction: faction.ID(e.Fact),
+			Stats: e.Stats.toDomain(), XPReward: e.XP, GoldReward: e.Gold, Drop: e.Drop,
+		}
 	}
 	return out, nil
 }

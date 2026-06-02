@@ -29,15 +29,16 @@ func (w Weather) String() string {
 	return [...]string{"clear", "rain", "fog"}[w%3]
 }
 
-// TicksPerPhase is how many world ticks each part of the day lasts.
-const TicksPerPhase = 30
+// TicksPerPhase is how many world ticks each part of the day lasts. With a
+// one-second tick that is one minute per phase — slow enough to feel ambient.
+const TicksPerPhase = 60
 
-// weatherChangeChance is the per-tick probability that the weather shifts.
-const weatherChangeChance = 0.1
+// weatherChangeChance is the per-tick probability that the weather shifts. Kept
+// low so the sky doesn't flicker every few seconds.
+const weatherChangeChance = 0.02
 
 // Clock tracks elapsed time, the day phase, and the weather. Time advances on a
-// fixed schedule; weather shifts probabilistically using an injected roll, which
-// keeps the clock fully deterministic under test.
+// fixed schedule; weather shifts probabilistically using an injected roll.
 type Clock struct {
 	Tick      int
 	TimeOfDay TimeOfDay
@@ -45,8 +46,7 @@ type Clock struct {
 }
 
 // Advance moves the clock forward one tick and returns human-readable notes for
-// anything that changed, ready for the UI log. roll must return a value in
-// [0,1): pass rand.Float64 in production, a stub in tests.
+// anything that changed. roll must return a value in [0,1).
 func (c *Clock) Advance(roll func() float64) []string {
 	c.Tick++
 	var notes []string
@@ -62,9 +62,7 @@ func (c *Clock) Advance(roll func() float64) []string {
 	return notes
 }
 
-// EnemyPowerBonus is the MVP's single "living world affects combat" hook: at
-// night, enemies hit a little harder. The app applies it to enemy attack stats
-// when a battle starts, so world never needs to import combat.
+// EnemyPowerBonus is the living-world combat hook: at night enemies hit harder.
 func (c Clock) EnemyPowerBonus() int {
 	if c.TimeOfDay == Night {
 		return 3

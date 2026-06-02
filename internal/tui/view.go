@@ -5,22 +5,40 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-
 	"github.com/mattn/go-runewidth"
+
 	"github.com/uinjad/AzureNights2/internal/domain/world"
 )
 
 func (m Model) View() string {
+	if m.confirmingQuit {
+		return alertStyle().Render(
+			"Quit AzureNights?\n\nUnsaved progress will be lost.\n" +
+				"Press y to quit · any other key to stay · ctrl+s saves first")
+	}
 	switch m.mode {
-	case modeMenu:
-		return m.viewMenu()
+	case modeName:
+		return m.viewName()
 	case modeBattle:
 		return m.viewBattle()
+	case modeMenu:
+		return m.viewMenu()
 	case modeGameOver:
 		return m.viewGameOver()
 	default:
 		return m.viewExploration()
 	}
+}
+
+func (m Model) viewName() string {
+	title := lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true).Render("⚔  AzureNights")
+	prompt := "Name your hero: " + m.nameInput + "▏"
+	hintText := " type a name · enter to begin"
+	if m.session.HasSave() {
+		hintText = " type a name · enter to begin · ctrl+l to load your save"
+	}
+	box := alertStyle().Render(title + "\n\n" + prompt)
+	return lipgloss.JoinVertical(lipgloss.Left, box, dimStyle().Render(hintText))
 }
 
 func (m Model) viewExploration() string {
@@ -36,10 +54,9 @@ func (m Model) viewExploration() string {
 
 	top := lipgloss.JoinHorizontal(lipgloss.Top, mapBox, "  ", panelStyle().Render(m.renderStatus()))
 	logBox := panelStyle().Width(lipgloss.Width(top) - 2).Render(m.renderLog())
-	questBox := panelStyle().Width(lipgloss.Width(top) - 2).Render(m.renderQuests())
-	footer := dimStyle().Render(" arrows/wasd move · c character · ctrl+s save · q quit ")
+	footer := dimStyle().Render(" arrows/wasd move · c character & quests · ctrl+s save · q quit ")
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, top, logBox, questBox, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, header, top, logBox, footer)
 }
 
 func (m Model) renderMap() string {
@@ -71,8 +88,8 @@ func (m Model) renderMap() string {
 	return b.String()
 }
 
-// cell forces a glyph into exactly two terminal columns, padding narrow glyphs
-// so a misjudged emoji width can never skew the grid.
+// cell forces a glyph into exactly two terminal columns so a misjudged emoji
+// width can never skew the grid.
 func cell(glyph string) string {
 	switch w := runewidth.StringWidth(glyph); {
 	case w == 1:
@@ -83,82 +100,51 @@ func cell(glyph string) string {
 		return glyph
 	}
 }
+
 func (m Model) renderStatus() string {
 	h := m.session.HeroView()
 	return strings.Join([]string{
 		fmt.Sprintf("%s — %s  Lv%d", h.Name, h.ClassName, h.Level),
 		fmt.Sprintf("HP %s %d/%d", bar(h.HP, h.MaxHP, 10), h.HP, h.MaxHP),
 		fmt.Sprintf("MP %s %d/%d", bar(h.MP, h.MaxMP, 10), h.MP, h.MaxMP),
-		fmt.Sprintf("💰 %d   ✨ %d XP", h.Gold, h.XP),
+		fmt.Sprintf("Gold %d   XP %d", h.Gold, h.XP),
 	}, "\n")
 }
 
+// renderLog always shows five rows (blank-padded at the top) so the panel keeps
+// a fixed height from the very first turn.
 func (m Model) renderLog() string {
-	log := m.session.Log
 	const n = 5
+	log := m.session.Log
 	if len(log) > n {
 		log = log[len(log)-n:]
 	}
-	return strings.Join(log, "\n")
-}
-
-func (m Model) viewGameOver() string {
-	return alertStyle().Render("💀  You have fallen.\n\nPress q to quit.")
-}
-
-// --- styles & helpers ---
-
-func panelStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).Padding(0, 1)
-}
-
-func dimStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-}
-
-func alertStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("196")).Padding(1, 2)
-}
-
-// timeStyle maps the day phase to a tint and label — the living-world palette.
-func timeStyle(t world.TimeOfDay) (lipgloss.Color, string) {
-	switch t {
-	case world.Dawn:
-		return lipgloss.Color("217"), "🌅 dawn"
-	case world.Day:
-		return lipgloss.Color("220"), "☀️  day"
-	case world.Dusk:
-		return lipgloss.Color("208"), "🌆 dusk"
-	default:
-		return lipgloss.Color("63"), "🌙 night"
+	lines := make([]string, 0, n)
+	for i := 0; i < n-len(log); i++ {
+		lines = append(lines, " ")
 	}
+	lines = append(lines, log...)
+	return strings.Join(lines, "\n")
 }
 
-func weatherLabel(w world.Weather) string {
-	switch w {
-	case world.Rain:
-		return "🌧 rain"
-	case world.Fog:
-		return "🌫 fog"
-	default:
-		return "✨ clear"
+func (m Model) renderQuests() string {
+	quests := m.session.QuestLog()
+	if len(quests) == 0 {
+		return "Quests: (none)"
 	}
-}
-
-func bar(cur, max, width int) string {
-	if max <= 0 {
-		max = 1
+	var b strings.Builder
+	b.WriteString("Quests")
+	for _, q := range quests {
+		mark := " "
+		if q.Done {
+			mark = "✓"
+		}
+		b.WriteString(fmt.Sprintf("\n [%s] %s", mark, q.Name))
+		for _, o := range q.Objectives {
+			b.WriteString(fmt.Sprintf("\n     • %s (%d/%d)", o.Desc, o.Have, o.Need))
+		}
 	}
-	filled := cur * width / max
-	if filled < 0 {
-		filled = 0
-	}
-	if filled > width {
-		filled = width
-	}
-	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+	return b.String()
 }
 
 func (m Model) viewBattle() string {
@@ -166,21 +152,20 @@ func (m Model) viewBattle() string {
 	if !ok {
 		return ""
 	}
-
 	var lines []string
 	for _, e := range bv.Enemies {
 		lines = append(lines, fmt.Sprintf("%s %-12s HP %s %d/%d",
-			e.Emoji, e.Name, bar(e.HP, e.MaxHP, 12), e.HP, e.MaxHP))
+			cell(e.Emoji), e.Name, bar(e.HP, e.MaxHP, 12), e.HP, e.MaxHP))
 	}
 	p := bv.Player
 	lines = append(lines, "",
-		fmt.Sprintf("🧝 %-12s HP %s %d/%d", p.Name, bar(p.HP, p.MaxHP, 12), p.HP, p.MaxHP),
-		fmt.Sprintf("   %-12s MP %s %d/%d", "", bar(p.MP, p.MaxMP, 12), p.MP, p.MaxMP),
+		fmt.Sprintf("%s %-12s HP %s %d/%d", cell("🧝"), p.Name, bar(p.HP, p.MaxHP, 12), p.HP, p.MaxHP),
+		fmt.Sprintf("%s %-12s MP %s %d/%d", "  ", "", bar(p.MP, p.MaxMP, 12), p.MP, p.MaxMP),
 		"")
 
-	lines = append(lines, m.menuItem(0, "⚔ Attack", true))
+	lines = append(lines, m.menuItem(0, "Attack", true))
 	for i, sk := range m.session.BattleSkills() {
-		lines = append(lines, m.menuItem(i+1, fmt.Sprintf("%s %s (%d MP)", sk.Emoji, sk.Name, sk.MPCost), sk.Usable))
+		lines = append(lines, m.menuItem(i+1, fmt.Sprintf("%s (%d MP)", sk.Name, sk.MPCost), sk.Usable))
 	}
 
 	battleBox := alertStyle().Render(strings.Join(lines, "\n"))
@@ -196,7 +181,6 @@ func (m Model) viewBattle() string {
 	return lipgloss.JoinVertical(lipgloss.Left, battleBox, logBox, hint)
 }
 
-// menuItem renders one action row: a cursor when selected, greyed when unusable.
 func (m Model) menuItem(idx int, label string, usable bool) string {
 	cursor := "  "
 	if idx == m.bMenu {
@@ -237,27 +221,65 @@ func (m Model) viewMenu() string {
 		rows = append(rows, style.Render(cursor+a.label))
 	}
 
-	box := panelStyle().Render(stats + "\n\n" + strings.Join(rows, "\n"))
+	box := panelStyle().Render(stats + "\n\n" + strings.Join(rows, "\n") + "\n\n" + m.renderQuests())
 	hint := dimStyle().Render(" ↑/↓ choose · enter select · c/esc close · q quit ")
 	return lipgloss.JoinVertical(lipgloss.Left, box, hint)
 }
 
-func (m Model) renderQuests() string {
-	quests := m.session.QuestLog()
-	if len(quests) == 0 {
-		return "Quests: (none)"
+func (m Model) viewGameOver() string {
+	return alertStyle().Render("💀  You have fallen.\n\nPress q to quit.")
+}
+
+// --- styles & helpers ---
+
+func panelStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).Padding(0, 1)
+}
+
+func dimStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+}
+
+func alertStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("63")).Padding(1, 2)
+}
+
+func timeStyle(t world.TimeOfDay) (lipgloss.Color, string) {
+	switch t {
+	case world.Dawn:
+		return lipgloss.Color("217"), "🌅 dawn"
+	case world.Day:
+		return lipgloss.Color("220"), "🌞 day"
+	case world.Dusk:
+		return lipgloss.Color("208"), "🌆 dusk"
+	default:
+		return lipgloss.Color("63"), "🌙 night"
 	}
-	var b strings.Builder
-	b.WriteString("Quests")
-	for _, q := range quests {
-		mark := " "
-		if q.Done {
-			mark = "✓"
-		}
-		b.WriteString(fmt.Sprintf("\n [%s] %s", mark, q.Name))
-		for _, o := range q.Objectives {
-			b.WriteString(fmt.Sprintf("\n     • %s (%d/%d)", o.Desc, o.Have, o.Need))
-		}
+}
+
+func weatherLabel(w world.Weather) string {
+	switch w {
+	case world.Rain:
+		return "☔ rain"
+	case world.Fog:
+		return "🌫 fog"
+	default:
+		return "✨ clear"
 	}
-	return b.String()
+}
+
+func bar(cur, max, width int) string {
+	if max <= 0 {
+		max = 1
+	}
+	filled := cur * width / max
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > width {
+		filled = width
+	}
+	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }

@@ -8,16 +8,14 @@ import (
 	"github.com/uinjad/AzureNights2/internal/domain/character"
 	"github.com/uinjad/AzureNights2/internal/domain/class"
 	"github.com/uinjad/AzureNights2/internal/domain/combat"
+	"github.com/uinjad/AzureNights2/internal/domain/item"
 	"github.com/uinjad/AzureNights2/internal/domain/quest"
-	"github.com/uinjad/AzureNights2/internal/domain/stats"
 	"github.com/uinjad/AzureNights2/internal/domain/world"
 )
 
-// respawnDelay is how many world ticks a defeated enemy stays gone.
 const respawnDelay = 20
 
-// Session is the live game. The UI drives it through these use-cases and never
-// touches the domain packages directly.
+// Session is the live game. The UI drives it through these use-cases.
 type Session struct {
 	reg  *content.Registry
 	repo Repository
@@ -37,16 +35,10 @@ type Session struct {
 	quests  []QuestProgress
 }
 
-// Option configures a Session at construction.
 type Option func(*Session)
 
-// WithRoll injects the randomness source (world clock + combat), so tests can be
-// deterministic.
-func WithRoll(roll func() float64) Option {
-	return func(s *Session) { s.roll = roll }
-}
+func WithRoll(roll func() float64) Option { return func(s *Session) { s.roll = roll } }
 
-// New builds a session bound to loaded content and a persistence adapter.
 func New(reg *content.Registry, repo Repository, opts ...Option) *Session {
 	s := &Session{reg: reg, repo: repo, roll: rand.Float64, curSpawn: -1}
 	for _, o := range opts {
@@ -55,7 +47,12 @@ func New(reg *content.Registry, repo Repository, opts ...Option) *Session {
 	return s
 }
 
-// NewGame starts a fresh playthrough on the opening map.
+// Started reports whether a game has begun (used by the UI's name screen).
+func (s *Session) Started() bool { return s.Hero != nil }
+
+// HasSave reports whether a saved game exists to load.
+func (s *Session) HasSave() bool { return s.repo.Exists() }
+
 func (s *Session) NewGame(heroName string) error {
 	hero, err := character.New(heroName, s.reg.Classes)
 	if err != nil {
@@ -81,31 +78,27 @@ func (s *Session) NewGame(heroName string) error {
 
 	s.enterMap("forest", md.Spawn)
 	s.logf("%s sets out into %s.", hero.Name, md.Name)
+	s.logf("Press 'c' to equip your starting gear.")
 	return nil
 }
 
-// InBattle reports whether a fight is in progress.
 func (s *Session) InBattle() bool { return s.Battle != nil }
 
-// GameOver reports whether the hero has fallen and the run is over.
 func (s *Session) GameOver() bool {
 	return s.Hero != nil && s.Hero.HP <= 0 && !s.InBattle()
 }
 
-// Map returns the tiles of the current map for rendering.
 func (s *Session) Map() *world.TileMap { return s.currentMap() }
 
 func (s *Session) currentMap() *world.TileMap { return s.reg.Maps[s.MapID].Map }
 
-// Move walks one tile. Onto a portal it travels maps; onto an enemy it starts a
-// battle; onto a campfire it restores pools; otherwise it just steps.
 func (s *Session) Move(dir world.Direction) error {
 	if s.InBattle() {
 		return ErrBusy
 	}
 	next, ok := s.currentMap().Step(s.PlayerPos, dir)
 	if !ok {
-		return nil // walked into a wall; harmless no-op
+		return nil
 	}
 	if p, ok := s.portalAt(next); ok {
 		s.enterMap(p.ToMap, p.ToPos)
@@ -147,7 +140,6 @@ func (s *Session) restHero() {
 	s.logf("You rest at the campfire — HP and MP restored.")
 }
 
-// Tick advances the living world by one step. The clock is frozen during battle.
 func (s *Session) Tick() {
 	if s.InBattle() {
 		return
@@ -158,7 +150,6 @@ func (s *Session) Tick() {
 	s.processRespawns()
 }
 
-// Attack performs the hero's basic attack on the chosen enemy.
 func (s *Session) Attack(targetIdx int) error {
 	if !s.InBattle() {
 		return ErrNotInBattle
@@ -170,7 +161,6 @@ func (s *Session) Attack(targetIdx int) error {
 	return nil
 }
 
-// UseSkill casts a skill by ID on the chosen enemy.
 func (s *Session) UseSkill(skillID string, targetIdx int) error {
 	if !s.InBattle() {
 		return ErrNotInBattle
@@ -186,12 +176,10 @@ func (s *Session) UseSkill(skillID string, targetIdx int) error {
 	return nil
 }
 
-// AdvancementOptions lists the class branches the hero currently qualifies for.
 func (s *Session) AdvancementOptions() []class.Class {
 	return s.reg.Classes.Options(s.Hero.ClassID, s.Hero.Level)
 }
 
-// AdvanceClass advances the hero onto a new class branch.
 func (s *Session) AdvanceClass(to class.ID) error {
 	if s.InBattle() {
 		return ErrBusy
@@ -204,11 +192,8 @@ func (s *Session) AdvanceClass(to class.ID) error {
 	return nil
 }
 
-// AdvanceTo advances the hero onto the named class branch (string convenience
-// for the TUI, which avoids importing the class package).
 func (s *Session) AdvanceTo(id string) error { return s.AdvanceClass(class.ID(id)) }
 
-// Equip puts an item from the content registry onto the hero.
 func (s *Session) Equip(itemID string) error {
 	it, ok := s.reg.Items[itemID]
 	if !ok {
@@ -221,17 +206,18 @@ func (s *Session) Equip(itemID string) error {
 	return nil
 }
 
-// EquipFromInventory equips the bag item at idx, returning whatever occupied
-// that slot back to the bag.
 func (s *Session) EquipFromInventory(idx int) error {
 	inv := s.Hero.Inventory
 	if idx < 0 || idx >= len(inv) {
 		return ErrInvalidItem
 	}
 	it := inv[idx]
-	s.Hero.Inventory = append(inv[:idx], inv[idx+1:]...) // take it out of the bag
+	if it.Kind != item.Gear {
+		return ErrInvalidItem
+	}
+	s.Hero.Inventory = append(inv[:idx], inv[idx+1:]...)
 	if old, ok := s.Hero.Equipment[it.Slot]; ok {
-		s.Hero.Inventory = append(s.Hero.Inventory, old) // old gear goes back
+		s.Hero.Inventory = append(s.Hero.Inventory, old)
 	}
 	if err := s.Hero.Equip(s.reg.Classes, it); err != nil {
 		return err
@@ -240,10 +226,16 @@ func (s *Session) EquipFromInventory(idx int) error {
 	return nil
 }
 
-// Save persists the current game through the repository port.
-func (s *Session) Save() error { return s.repo.Save(s.snapshot()) }
+// Save persists the game and logs the result so the player sees it happened.
+func (s *Session) Save() error {
+	if err := s.repo.Save(s.snapshot()); err != nil {
+		s.logf("Save failed: %v", err)
+		return err
+	}
+	s.logf("Game saved.")
+	return nil
+}
 
-// LoadGame restores a saved game through the repository port.
 func (s *Session) LoadGame() error {
 	snap, err := s.repo.Load()
 	if err != nil {
@@ -259,8 +251,6 @@ func (s *Session) LoadGame() error {
 
 // --- internals ---
 
-// enterMap places the hero on a map and resets that map's enemies. Spawn state
-// is local to the current map; entering also fires a "reach" quest event.
 func (s *Session) enterMap(mapID string, at world.Point) {
 	md := s.reg.Maps[mapID]
 	s.MapID, s.PlayerPos = mapID, at
@@ -290,35 +280,22 @@ func (s *Session) buildHeroCombatant() *combat.Combatant {
 	cls, _ := s.reg.Classes.Get(s.Hero.ClassID)
 	c := combat.NewCombatant(s.Hero.Name, "🧝", combat.SidePlayer, d)
 	c.Faction = cls.Faction
-	c.HP, c.MP = s.Hero.HP, s.Hero.MP // carry exploration pools into battle
+	c.HP, c.MP = s.Hero.HP, s.Hero.MP
 	return c
 }
 
+// buildEnemyCombatant uses the enemy's authored tier directly. Difficulty now
+// comes from which zone an enemy lives in, not from level scaling, which kept
+// fights predictable instead of swinging between trivial and lethal.
 func (s *Session) buildEnemyCombatant(def content.EnemyDef) *combat.Combatant {
-	st := scaleForLevel(def.Stats, s.Hero.Level)
-	if bonus := s.Clock.EnemyPowerBonus(); bonus > 0 { // living-world hook
+	st := def.Stats
+	if bonus := s.Clock.EnemyPowerBonus(); bonus > 0 {
 		st.PAtk += bonus
 		st.MAtk += bonus
 	}
 	c := combat.NewCombatant(def.Name, def.Emoji, combat.SideEnemy, st)
 	c.Faction = def.Faction
 	return c
-}
-
-// scaleForLevel grows an enemy template with the hero's level so encounters stay
-// meaningful as the hero advances. Level 1 is the authored baseline.
-func scaleForLevel(d stats.Derived, level int) stats.Derived {
-	steps := level - 1
-	if steps <= 0 {
-		return d
-	}
-	d.MaxHP += d.MaxHP * steps / 8
-	d.PAtk += d.PAtk * steps / 10
-	d.MAtk += d.MAtk * steps / 10
-	d.PDef += d.PDef * steps / 12
-	d.MDef += d.MDef * steps / 12
-	d.Init += d.Init * steps / 20
-	return d
 }
 
 func (s *Session) resolveBattleProgress() {
@@ -332,7 +309,7 @@ func (s *Session) resolveBattleProgress() {
 
 func (s *Session) settleBattle() {
 	pc := s.Battle.Player()
-	s.Hero.HP, s.Hero.MP = pc.HP, pc.MP // sync exploration pools back
+	s.Hero.HP, s.Hero.MP = pc.HP, pc.MP
 
 	if s.Battle.Phase == combat.PlayerWon {
 		sp := s.Spawns[s.curSpawn]
@@ -346,6 +323,7 @@ func (s *Session) settleBattle() {
 		if levels > 0 {
 			s.logf("You reach level %d!", s.Hero.Level)
 		}
+		s.rollLoot(def)
 		s.fireQuestEvent(quest.Event{Kind: quest.DefeatEnemy, Target: sp.DefID})
 	} else {
 		s.logf("%s has fallen…", s.Hero.Name)
@@ -353,8 +331,6 @@ func (s *Session) settleBattle() {
 	s.curSpawn, s.Battle = -1, nil
 }
 
-// fireQuestEvent advances every active quest against a world event, paying out
-// and logging the moment one completes.
 func (s *Session) fireQuestEvent(e quest.Event) {
 	for i := range s.quests {
 		qp := &s.quests[i]
@@ -378,8 +354,6 @@ func (s *Session) fireQuestEvent(e quest.Event) {
 	}
 }
 
-// processRespawns returns queued enemies to the map once their timer is up and
-// their tile is clear (and the hero isn't standing on it).
 func (s *Session) processRespawns() {
 	keep := s.pending[:0]
 	for _, pr := range s.pending {
@@ -416,4 +390,40 @@ func (s *Session) snapshot() *Snapshot {
 
 func (s *Session) logf(format string, a ...any) {
 	s.Log = append(s.Log, fmt.Sprintf(format, a...))
+}
+
+// UsePotion drinks the bag's potion at idx, restoring pools up to their max.
+func (s *Session) UsePotion(idx int) error {
+	inv := s.Hero.Inventory
+	if idx < 0 || idx >= len(inv) || inv[idx].Kind != item.Potion {
+		return ErrInvalidItem
+	}
+	p := inv[idx]
+	d, _ := s.Hero.EffectiveStats(s.reg.Classes)
+	s.Hero.HP = min(s.Hero.HP+p.Heal, d.MaxHP)
+	s.Hero.MP = min(s.Hero.MP+p.Mana, d.MaxMP)
+	s.Hero.Inventory = append(inv[:idx], inv[idx+1:]...)
+	s.logf("Used %s.", p.Name)
+	return nil
+}
+
+// rollLoot grants victory drops: a rare gear drop (5%) and a more common potion
+// (20%, split between health and mana).
+func (s *Session) rollLoot(def content.EnemyDef) {
+	if def.Drop != "" && s.roll() < 0.05 {
+		if it, ok := s.reg.Items[def.Drop]; ok {
+			s.Hero.AddItem(it)
+			s.logf("%s dropped %s! ('c' to equip)", def.Name, it.Name)
+		}
+	}
+	if s.roll() < 0.20 {
+		id := "hp_potion"
+		if s.roll() < 0.5 {
+			id = "mp_potion"
+		}
+		if it, ok := s.reg.Items[id]; ok {
+			s.Hero.AddItem(it)
+			s.logf("Found a %s. ('c' to use)", it.Name)
+		}
+	}
 }

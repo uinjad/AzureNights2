@@ -4,27 +4,15 @@
   "legend": {
     "#": {"kind":"wall","emoji":"🧱","walkable":false},
     ".": {"kind":"floor","emoji":"◾","walkable":true},
-    "R": {"kind":"floor","emoji":"🚪","walkable":true},
-    "C": {"kind":"floor","emoji":"🔥","walkable":true}
+    "C": {"kind":"floor","emoji":"🔥","walkable":true},
+    "B": {"kind":"floor","emoji":"🚪","walkable":true},
+    "P": {"kind":"floor","emoji":"🚪","walkable":true}
   },
-  "rows": [
-    "##########",
-    "#R.......#",
-    "#...##...#",
-    "#..C.....#",
-    "#....##..#",
-    "#........#",
-    "##########"
-  ],
-  "enemies": [
-    {"x":5,"y":1,"id":"grunt"},
-    {"x":6,"y":3,"id":"brute"},
-    {"x":4,"y":5,"id":"skeleton"}
-  ],
+  "rows": ["##########","#B.......#","#...##...#","#...C....#","#..##....#","#.......P#","##########"],
+  "enemies": [{"x":6,"y":1,"id":"skeleton"},{"x":7,"y":3,"id":"grunt"},{"x":6,"y":5,"id":"grunt"}],
   "portals": [
-    {"at":{"x":1,"y":1},"to_map":"forest","to":{"x":7,"y":2}}
+    {"at":{"x":1,"y":1},"to_map":"marsh","to":{"x":7,"y":5}},
+    {"at":{"x":8,"y":5},"to_map":"keep","to":{"x":2,"y":1}}
   ],
-  "rests": [
-    {"x":3,"y":3}
-  ]
+  "rests": [{"x":4,"y":3}]
 }

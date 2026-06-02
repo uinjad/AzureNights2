@@ -40,6 +40,7 @@ type EnemyDef struct {
 	Stats      stats.Derived
 	XPReward   int
 	GoldReward int
+	Drop       string
 }
 
 // EnemyPlacement positions an enemy template on a map.

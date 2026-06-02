@@ -2,14 +2,14 @@
   "root": "adventurer",
   "classes": [
     {"id":"adventurer","name":"Adventurer","faction":"","bonus":{"str":4,"dex":4,"con":4,"int":4,"wit":4,"men":4},
-     "advances":[{"to":"solar_initiate","min_level":5},{"to":"illumite_initiate","min_level":5},{"to":"lawful_initiate","min_level":5}]},
+     "advances":[{"to":"solar_initiate","min_level":3},{"to":"illumite_initiate","min_level":3},{"to":"lawful_initiate","min_level":3}]},
 
     {"id":"solar_initiate","name":"Solar Initiate","faction":"solar","bonus":{"str":2,"dex":2,"con":2,"int":2,"wit":2,"men":2},"skills":["radiant_smite"],
-     "advances":[{"to":"solar_warrior","min_level":10},{"to":"solar_archer","min_level":10},{"to":"solar_mage","min_level":10}]},
+     "advances":[{"to":"solar_warrior","min_level":6},{"to":"solar_archer","min_level":6},{"to":"solar_mage","min_level":6}]},
     {"id":"illumite_initiate","name":"Illumite Initiate","faction":"illumite","bonus":{"str":2,"dex":2,"con":2,"int":2,"wit":2,"men":2},"skills":["venom_fang"],
-     "advances":[{"to":"illumite_warrior","min_level":10},{"to":"illumite_archer","min_level":10},{"to":"illumite_mage","min_level":10}]},
+     "advances":[{"to":"illumite_warrior","min_level":6},{"to":"illumite_archer","min_level":6},{"to":"illumite_mage","min_level":6}]},
     {"id":"lawful_initiate","name":"Lawful Initiate","faction":"lawful","bonus":{"str":2,"dex":2,"con":2,"int":2,"wit":2,"men":2},"skills":["riot_strike"],
-     "advances":[{"to":"lawful_warrior","min_level":10},{"to":"lawful_archer","min_level":10},{"to":"lawful_mage","min_level":10}]},
+     "advances":[{"to":"lawful_warrior","min_level":6},{"to":"lawful_archer","min_level":6},{"to":"lawful_mage","min_level":6}]},
 
     {"id":"solar_warrior","name":"Solar Warrior","faction":"solar","bonus":{"str":7,"dex":2,"con":6},"skills":["cleave"]},
     {"id":"solar_archer","name":"Solar Archer","faction":"solar","bonus":{"str":4,"dex":10,"con":3},"skills":["aimed_shot"]},

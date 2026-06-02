@@ -133,16 +133,20 @@ func (s *Session) AdvancementView() []AdvanceOption {
 
 // InventoryItem is a bag entry for the menu.
 type InventoryItem struct {
-	Name  string
-	Emoji string
-	Slot  string
+	Name string
+	Slot string
+	Kind string // "gear" or "potion"
 }
 
 // InventoryView lists the hero's unequipped gear.
 func (s *Session) InventoryView() []InventoryItem {
 	out := make([]InventoryItem, 0, len(s.Hero.Inventory))
 	for _, it := range s.Hero.Inventory {
-		out = append(out, InventoryItem{Name: it.Name, Emoji: it.Emoji, Slot: slotName(it.Slot)})
+		kind := "gear"
+		if it.Kind == item.Potion {
+			kind = "potion"
+		}
+		out = append(out, InventoryItem{Name: it.Name, Slot: slotName(it.Slot), Kind: kind})
 	}
 	return out
 }
@@ -156,7 +160,7 @@ type EquippedView struct {
 func (s *Session) EquippedView() EquippedView {
 	name := func(sl item.Slot) string {
 		if it, ok := s.Hero.Equipment[sl]; ok {
-			return it.Emoji + " " + it.Name
+			return it.Name
 		}
 		return "—"
 	}

@@ -40,8 +40,11 @@ func TestLoadAssemblesRegistry(t *testing.T) {
 	if _, ok := reg.Maps["cavern"]; !ok {
 		t.Error("cavern map missing")
 	}
-	if len(m.Portals) == 0 || m.Portals[0].ToMap != "cavern" {
-		t.Errorf("forest should have a portal to the cavern, got %+v", m.Portals)
+	if len(m.Portals) == 0 || m.Portals[0].ToMap != "coast" {
+		t.Errorf("forest should have a portal to the coast, got %+v", m.Portals)
+	}
+	if _, ok := reg.Maps["keep"]; !ok {
+		t.Error("keep map missing")
 	}
 	if len(m.Rests) == 0 {
 		t.Error("forest should have a campfire")

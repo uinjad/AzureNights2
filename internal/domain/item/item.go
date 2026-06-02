@@ -1,10 +1,10 @@
-// Package item defines equippable gear and the stat bonuses it grants while
-// worn. The MVP keeps exactly two slots: a weapon and a piece of armor.
+// Package item defines gear and consumables the hero can carry. Gear occupies a
+// slot and grants stat bonuses while worn; potions are consumed for a one-shot
+// restore. The Kind field keeps the two apart without separate collections.
 package item
 
 import "github.com/uinjad/AzureNights2/internal/domain/stats"
 
-// Slot is an equipment slot.
 type Slot int
 
 const (
@@ -12,12 +12,25 @@ const (
 	Armor
 )
 
-// Item is a piece of equippable gear. Its Bonus is added on top of a
-// character's derived stats while equipped.
+type Kind int
+
+const (
+	Gear Kind = iota
+	Potion
+)
+
+// Item is a piece of carried equipment or a consumable.
 type Item struct {
 	ID    string
 	Name  string
 	Emoji string
+	Kind  Kind
+
+	// Gear:
 	Slot  Slot
 	Bonus stats.Derived
+
+	// Potion:
+	Heal int // HP restored
+	Mana int // MP restored
 }

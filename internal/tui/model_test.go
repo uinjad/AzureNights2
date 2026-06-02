@@ -41,7 +41,6 @@ func TestExplorationViewRenders(t *testing.T) {
 func TestMovementUpdatesPosition(t *testing.T) {
 	m := newModel(t)
 	start := m.session.PlayerPos
-	// Try directions until the hero actually moves — robust to map layout.
 	for _, key := range []tea.KeyType{tea.KeyRight, tea.KeyDown, tea.KeyUp, tea.KeyLeft} {
 		updated, _ := m.Update(tea.KeyMsg{Type: key})
 		if updated.(Model).session.PlayerPos != start {
@@ -52,13 +51,21 @@ func TestMovementUpdatesPosition(t *testing.T) {
 	t.Errorf("hero should have moved from %+v in some direction", start)
 }
 
-func TestQuitIssuesQuitCommand(t *testing.T) {
+func TestQuitAsksForConfirmationThenQuits(t *testing.T) {
 	m := newModel(t)
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	m = updated.(Model)
+	if !m.confirmingQuit {
+		t.Fatal("q should ask for confirmation, not quit immediately")
+	}
+	if cmd != nil {
+		t.Error("q alone should not issue a command")
+	}
+	updated, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	if cmd == nil {
-		t.Fatal("q should produce a command")
+		t.Fatal("y should confirm the quit")
 	}
 	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Error("q should issue tea.Quit")
+		t.Error("y should issue tea.Quit")
 	}
 }
