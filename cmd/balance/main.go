@@ -125,53 +125,63 @@ func classWinRate(reg *content.Registry, a, b class.Class, level, n int, roll fu
 	return pct(wins, n)
 }
 
-func printClassMatrix(reg *content.Registry, leaves []class.Class, level, n int, roll func() float64) {
-	fmt.Println("Class vs class — row's win % vs column (both cast skills):")
+// printMatrix renders a tabwriter-aligned table: a header row of column
+// labels, then one row per row label with cell(i, j) supplying each entry.
+// It is the shared shape behind both win-rate tables below.
+func printMatrix(title string, rows, cols []string, cell func(i, j int) string) {
+	fmt.Println(title)
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprint(w, " ")
-	for _, c := range leaves {
-		fmt.Fprintf(w, "\t%s", short(c.Name))
+	for _, c := range cols {
+		fmt.Fprintf(w, "\t%s", c)
 	}
 	fmt.Fprintln(w)
-	for _, a := range leaves {
-		fmt.Fprintf(w, "%s", short(a.Name))
-		for _, b := range leaves {
-			if a.ID == b.ID {
-				fmt.Fprint(w, "\t  —")
-				continue
-			}
-			fmt.Fprintf(w, "\t%3.0f", classWinRate(reg, a, b, level, n, roll))
+	for i, r := range rows {
+		fmt.Fprintf(w, "%s", r)
+		for j := range cols {
+			fmt.Fprintf(w, "\t%s", cell(i, j))
 		}
 		fmt.Fprintln(w)
 	}
 	w.Flush()
 }
 
-func printMobTable(reg *content.Registry, leaves []class.Class, level, n int, roll func() float64) {
-	fmt.Println("Class vs enemy — win % (raw enemy tier, no level scaling):")
-	enemies := sortedEnemies(reg)
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprint(w, " ")
-	for _, e := range enemies {
-		fmt.Fprintf(w, "\t%s", e.Name)
+func printClassMatrix(reg *content.Registry, leaves []class.Class, level, n int, roll func() float64) {
+	names := make([]string, len(leaves))
+	for i, c := range leaves {
+		names[i] = short(c.Name)
 	}
-	fmt.Fprintln(w)
-	for _, a := range leaves {
-		as := classSkills(reg, a)
-		fmt.Fprintf(w, "%s", short(a.Name))
-		for _, e := range enemies {
+	printMatrix("Class vs class — row's win % vs column (both cast skills):", names, names,
+		func(i, j int) string {
+			if leaves[i].ID == leaves[j].ID {
+				return "  —"
+			}
+			return fmt.Sprintf("%3.0f", classWinRate(reg, leaves[i], leaves[j], level, n, roll))
+		})
+}
+
+func printMobTable(reg *content.Registry, leaves []class.Class, level, n int, roll func() float64) {
+	enemies := sortedEnemies(reg)
+	rows := make([]string, len(leaves))
+	skills := make([][]combat.Skill, len(leaves))
+	cols := make([]string, len(enemies))
+	for i, c := range leaves {
+		rows[i], skills[i] = short(c.Name), classSkills(reg, c)
+	}
+	for j, e := range enemies {
+		cols[j] = e.Name
+	}
+	printMatrix("Class vs enemy — win % (raw enemy tier, no level scaling):", rows, cols,
+		func(i, j int) string {
 			wins := 0
-			for i := 0; i < n; i++ {
-				if duel(classCombatant(reg, a, level, combat.SidePlayer),
-					enemyCombatant(e, combat.SideEnemy), as, nil, reg.Factions, roll) {
+			for k := 0; k < n; k++ {
+				if duel(classCombatant(reg, leaves[i], level, combat.SidePlayer),
+					enemyCombatant(enemies[j], combat.SideEnemy), skills[i], nil, reg.Factions, roll) {
 					wins++
 				}
 			}
-			fmt.Fprintf(w, "\t%3.0f", pct(wins, n))
-		}
-		fmt.Fprintln(w)
-	}
-	w.Flush()
+			return fmt.Sprintf("%3.0f", pct(wins, n))
+		})
 }
 
 func printFactionTriangle(reg *content.Registry, level, n int, roll func() float64) {

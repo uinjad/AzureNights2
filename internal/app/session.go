@@ -213,11 +213,7 @@ func (s *Session) Equip(itemID string) error {
 	if !ok {
 		return fmt.Errorf("app: unknown item %q", itemID)
 	}
-	if err := s.Hero.Equip(s.reg.Classes, it); err != nil {
-		return err
-	}
-	s.logf("Equipped %s.", it.Name)
-	return nil
+	return s.equip(it)
 }
 
 func (s *Session) EquipFromInventory(idx int) error {
@@ -233,6 +229,12 @@ func (s *Session) EquipFromInventory(idx int) error {
 	if old, ok := s.Hero.Equipment[it.Slot]; ok {
 		s.Hero.Inventory = append(s.Hero.Inventory, old)
 	}
+	return s.equip(it)
+}
+
+// equip swaps the item into the hero's gear and logs it — the shared tail of
+// both equip paths (by item ID and from the bag).
+func (s *Session) equip(it item.Item) error {
 	if err := s.Hero.Equip(s.reg.Classes, it); err != nil {
 		return err
 	}
@@ -346,14 +348,11 @@ func (s *Session) settleBattle() {
 		sp := s.Spawns[s.curSpawn]
 		def := s.reg.Enemies[sp.DefID]
 		s.Hero.Gold += def.GoldReward
-		levels, _ := s.Hero.AddXP(s.reg.Classes, def.XPReward)
 		s.PlayerPos = sp.Pos
 		s.removeSpawn(s.curSpawn)
 		s.pending = append(s.pending, PendingRespawn{Pos: sp.Pos, DefID: sp.DefID, AtTick: s.Clock.Tick + respawnDelay})
 		s.logf("You defeat %s! +%d XP, +%d gold.", def.Name, def.XPReward, def.GoldReward)
-		if levels > 0 {
-			s.logf("You reach level %d!", s.Hero.Level)
-		}
+		s.grantXP(def.XPReward)
 		s.rollLoot(def)
 		s.checkBoss(sp.DefID)
 		s.fireQuestEvent(quest.Event{Kind: quest.DefeatEnemy, Target: sp.DefID})
@@ -388,23 +387,37 @@ func hasLockedPortal(md content.MapDef) bool {
 	return false
 }
 
+// grantXP awards XP and logs a level-up, if any — the shared tail of every
+// reward path (battle victories, quest completions, …).
+func (s *Session) grantXP(amount int) {
+	levels, _ := s.Hero.AddXP(s.reg.Classes, amount)
+	if levels > 0 {
+		s.logf("You reach level %d!", s.Hero.Level)
+	}
+}
+
 func (s *Session) rollLoot(def content.EnemyDef) {
 	if def.Drop != "" && s.roll() < 0.05 {
-		if it, ok := s.reg.Items[def.Drop]; ok {
-			s.Hero.AddItem(it)
-			s.logf("%s dropped %s! ('c' to equip)", def.Name, it.Name)
-		}
+		s.grantItem(def.Drop, "%s dropped %s! ('c' to equip)", def.Name)
 	}
 	if s.roll() < 0.20 {
 		id := "hp_potion"
 		if s.roll() < 0.5 {
 			id = "mp_potion"
 		}
-		if it, ok := s.reg.Items[id]; ok {
-			s.Hero.AddItem(it)
-			s.logf("Found a %s. ('c' to use)", it.Name)
-		}
+		s.grantItem(id, "Found a %s. ('c' to use)")
 	}
+}
+
+// grantItem adds an item to the hero's bag and logs it with format, which must
+// take the item's name last (preceded by any extra %s args, e.g. the source).
+func (s *Session) grantItem(itemID, format string, args ...any) {
+	it, ok := s.reg.Items[itemID]
+	if !ok {
+		return
+	}
+	s.Hero.AddItem(it)
+	s.logf(format, append(args, it.Name)...)
 }
 
 func (s *Session) fireQuestEvent(e quest.Event) {
@@ -421,11 +434,8 @@ func (s *Session) fireQuestEvent(e quest.Event) {
 		if def.Complete(qp.Counts) {
 			qp.Done = true
 			s.Hero.Gold += def.Reward.Gold
-			levels, _ := s.Hero.AddXP(s.reg.Classes, def.Reward.XP)
 			s.logf("Quest complete: %s! +%d XP, +%d gold.", def.Name, def.Reward.XP, def.Reward.Gold)
-			if levels > 0 {
-				s.logf("You reach level %d!", s.Hero.Level)
-			}
+			s.grantXP(def.Reward.XP)
 		}
 	}
 }

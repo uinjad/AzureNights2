@@ -220,27 +220,37 @@ type menuAction struct {
 func (m Model) menuActions() []menuAction {
 	var out []menuAction
 	for _, opt := range m.session.AdvancementView() {
-		id := opt.ID
-		out = append(out, menuAction{
-			label: "⬆ Advance to " + opt.Name,
-			do:    func() { _ = m.session.AdvanceTo(id) },
-		})
+		out = append(out, m.advanceAction(opt))
 	}
 	for i, it := range m.session.InventoryView() {
-		idx := i
 		if it.Kind == "potion" {
-			out = append(out, menuAction{
-				label: "Use " + it.Name,
-				do:    func() { _ = m.session.UsePotion(idx) },
-			})
+			out = append(out, m.potionAction(i, it))
 		} else {
-			out = append(out, menuAction{
-				label: fmt.Sprintf("Equip %s (%s)", it.Name, it.Slot),
-				do:    func() { _ = m.session.EquipFromInventory(idx) },
-			})
+			out = append(out, m.equipAction(i, it))
 		}
 	}
 	return out
+}
+
+func (m Model) advanceAction(opt app.AdvanceOption) menuAction {
+	return menuAction{
+		label: "⬆ Advance to " + opt.Name,
+		do:    func() { _ = m.session.AdvanceTo(opt.ID) },
+	}
+}
+
+func (m Model) potionAction(idx int, it app.InventoryItem) menuAction {
+	return menuAction{
+		label: "Use " + it.Name,
+		do:    func() { _ = m.session.UsePotion(idx) },
+	}
+}
+
+func (m Model) equipAction(idx int, it app.InventoryItem) menuAction {
+	return menuAction{
+		label: fmt.Sprintf("Equip %s (%s)", it.Name, it.Slot),
+		do:    func() { _ = m.session.EquipFromInventory(idx) },
+	}
 }
 
 func modeFor(s *app.Session) mode {
